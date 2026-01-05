@@ -37,6 +37,7 @@ import com.docreader.utils.FileUtils;
 import com.docreader.utils.NotesManager;
 import com.docreader.utils.PdfEditManager;
 import com.docreader.utils.PdfPageManager;
+import com.docreader.utils.PdfToWordConverter;
 import com.docreader.views.DrawingView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.itextpdf.kernel.geom.PageSize;
@@ -1202,6 +1203,39 @@ public class PdfViewerActivity extends AppCompatActivity {
         }
     }
 
+
+    private void convertToWord() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "Converting PDF to Word...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                String docxPath = PdfToWordConverter.convertToDocx(filePath, getCacheDir());
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+
+                    new AlertDialog.Builder(this)
+                            .setTitle("Conversion Complete")
+                            .setMessage("PDF converted to Word document.\n\nYou can now edit it with your keyboard.")
+                            .setPositiveButton("Open & Edit", (dialog, which) -> {
+                                Intent intent = new Intent(this, DocViewerActivity.class);
+                                intent.putExtra("file_path", docxPath);
+                                intent.putExtra("file_name", new File(docxPath).getName());
+                                startActivity(intent);
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error converting: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
     // ==================== ACTIVITY CALLBACKS ====================
 
     @Override
@@ -1276,6 +1310,9 @@ public class PdfViewerActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.action_add_note) {
             showPageNotesDialog();
+            return true;
+        } else if (id == R.id.action_convert_to_word) {
+            convertToWord();
             return true;
         } else if (id == R.id.action_share) {
             shareDocument();

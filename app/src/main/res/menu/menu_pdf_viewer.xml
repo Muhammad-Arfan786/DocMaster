@@ -29,6 +29,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_convert_to_word"
+        android:title="Convert to Word"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_share"
         android:icon="@drawable/ic_share"
         android:title="@string/share"

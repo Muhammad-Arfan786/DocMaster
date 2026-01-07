@@ -1,18 +1,18 @@
 package com.docreader.activities;
 
+import android.content.ContentValues;
 import android.content.Intent;
-import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.text.Spannable;
-import android.text.SpannableString;
-import android.text.style.BackgroundColorSpan;
+import android.provider.MediaStore;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Toast;
+
+import java.io.OutputStream;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -23,6 +23,8 @@ import androidx.core.content.FileProvider;
 import com.docreader.R;
 import com.docreader.databinding.ActivityDocViewerBinding;
 import com.docreader.utils.FileUtils;
+import com.docreader.utils.PdfToWordConverter;
+import com.docreader.utils.WordToPdfConverter;
 
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
@@ -34,14 +36,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Activity for viewing and editing DOC and DOCX documents.
@@ -51,14 +49,14 @@ public class DocViewerActivity extends AppCompatActivity {
     private ActivityDocViewerBinding binding;
     private String filePath;
     private String fileName;
+    private String originalPdfPath;  // Original PDF path if converted from PDF
+    private String originalPdfName;
     private String documentText = "";
     private String originalText = "";
     private float fontSize = 16f;
     private boolean isEditMode = false;
     private boolean hasChanges = false;
-    private List<Integer> searchPositions = new ArrayList<>();
-    private int currentSearchIndex = -1;
-    private String currentSearchQuery = "";
+    private boolean isFromPdf = false;  // Flag to track if document came from PDF conversion
     private Menu optionsMenu;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -71,6 +69,9 @@ public class DocViewerActivity extends AppCompatActivity {
 
         filePath = getIntent().getStringExtra("file_path");
         fileName = getIntent().getStringExtra("file_name");
+        originalPdfPath = getIntent().getStringExtra("original_pdf_path");
+        originalPdfName = getIntent().getStringExtra("original_pdf_name");
+        isFromPdf = (originalPdfPath != null && !originalPdfPath.isEmpty());
 
         if (filePath == null) {
             Toast.makeText(this, R.string.error_file_not_found, Toast.LENGTH_SHORT).show();
@@ -80,16 +81,24 @@ public class DocViewerActivity extends AppCompatActivity {
 
         setupToolbar();
         setupControls();
-        setupSearch();
         setupBackHandler();
         loadDocument();
+
+        // If coming from PDF conversion, show instructions
+        if (isFromPdf) {
+            binding.getRoot().postDelayed(() -> {
+                Toast.makeText(this, "Tap 'Edit' to start editing, then 'Save PDF' when done", Toast.LENGTH_LONG).show();
+            }, 1000);
+        }
     }
 
     private void setupToolbar() {
         setSupportActionBar(binding.toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle(fileName != null ? fileName : "Document Viewer");
+            // Show original PDF name if came from PDF conversion
+            String title = isFromPdf ? originalPdfName : (fileName != null ? fileName : "Document Viewer");
+            getSupportActionBar().setTitle(title);
         }
 
         binding.toolbar.setNavigationOnClickListener(v -> handleBackPress());
@@ -108,21 +117,6 @@ public class DocViewerActivity extends AppCompatActivity {
                 enterEditMode();
             }
         });
-    }
-
-    private void setupSearch() {
-        binding.btnCloseSearch.setOnClickListener(v -> hideSearch());
-
-        binding.etSearch.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performSearch(binding.etSearch.getText().toString());
-                return true;
-            }
-            return false;
-        });
-
-        binding.btnSearchPrev.setOnClickListener(v -> navigateSearch(-1));
-        binding.btnSearchNext.setOnClickListener(v -> navigateSearch(1));
     }
 
     private void setupBackHandler() {
@@ -160,7 +154,10 @@ public class DocViewerActivity extends AppCompatActivity {
                 }
 
                 String text;
-                if (FileUtils.isDocx(fileName)) {
+                if (isFromPdf && originalPdfPath != null) {
+                    // Load text directly from original PDF with page markers for better editing
+                    text = PdfToWordConverter.extractTextForEditing(originalPdfPath);
+                } else if (FileUtils.isDocx(fileName)) {
                     text = loadDocx(file);
                 } else {
                     text = loadDoc(file);
@@ -172,7 +169,9 @@ public class DocViewerActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     binding.tvContent.setVisibility(View.VISIBLE);
-                    binding.tvContent.setText(documentText);
+                    // Display text without page markers for viewing
+                    String displayText = text.replaceAll("\\[PAGE:\\d+\\]\n?", "--- Page Break ---\n");
+                    binding.tvContent.setText(displayText);
                     binding.tvContent.setTextSize(fontSize);
                     binding.etContent.setTextSize(fontSize);
                 });
@@ -218,11 +217,12 @@ public class DocViewerActivity extends AppCompatActivity {
         binding.etContent.setTextSize(fontSize);
         binding.etContent.requestFocus();
 
-        binding.btnEditSave.setText("Save");
+        binding.btnEditSave.setText(isFromPdf ? "Save PDF" : "Save");
         binding.btnEditSave.setIconResource(R.drawable.ic_save);
 
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Editing: " + fileName);
+            String title = isFromPdf ? "Editing PDF: " + originalPdfName : "Editing: " + fileName;
+            getSupportActionBar().setTitle(title);
         }
 
         updateMenuVisibility();
@@ -266,6 +266,12 @@ public class DocViewerActivity extends AppCompatActivity {
 
         executor.execute(() -> {
             try {
+                // If document came from PDF, save back as PDF
+                if (isFromPdf) {
+                    saveToPdf(newText);
+                    return;
+                }
+
                 File file = new File(filePath);
 
                 if (FileUtils.isDocx(fileName)) {
@@ -294,6 +300,107 @@ public class DocViewerActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void saveToPdf(String text) {
+        try {
+            // Get the original PDF file name without extension
+            String baseName = originalPdfName != null ? originalPdfName : "document";
+            if (baseName.toLowerCase().endsWith(".pdf")) {
+                baseName = baseName.substring(0, baseName.length() - 4);
+            }
+            String pdfFileName = baseName + "_edited.pdf";
+
+            // First create PDF in cache directory with proper formatting
+            File tempPdfFile;
+            if (isFromPdf && originalPdfPath != null) {
+                // Use original PDF page sizes for better formatting
+                tempPdfFile = WordToPdfConverter.convertToPdfMatchingOriginal(
+                        text, originalPdfPath, getCacheDir(), pdfFileName);
+            } else {
+                tempPdfFile = WordToPdfConverter.convertToPdf(text, getCacheDir(), pdfFileName);
+            }
+
+            String finalPath;
+            String displayLocation;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10+ : Use MediaStore to save to Downloads
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, pdfFileName);
+                values.put(MediaStore.Downloads.MIME_TYPE, "application/pdf");
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri != null) {
+                    try (OutputStream out = getContentResolver().openOutputStream(uri);
+                         FileInputStream in = new FileInputStream(tempPdfFile)) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    finalPath = tempPdfFile.getAbsolutePath(); // Use temp for opening
+                    displayLocation = "Downloads/" + pdfFileName;
+                } else {
+                    throw new Exception("Failed to create file in Downloads");
+                }
+            } else {
+                // Android 9 and below: Save directly to Downloads folder
+                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs();
+                }
+                File destFile = new File(downloadsDir, pdfFileName);
+
+                // Copy temp file to Downloads
+                try (FileInputStream in = new FileInputStream(tempPdfFile);
+                     FileOutputStream out = new FileOutputStream(destFile)) {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
+                }
+                finalPath = destFile.getAbsolutePath();
+                displayLocation = "Downloads/" + pdfFileName;
+            }
+
+            documentText = text;
+            originalText = text;
+
+            String pathToOpen = finalPath;
+            String fileNameToOpen = pdfFileName;
+            String locationToShow = displayLocation;
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                hasChanges = false;
+                exitEditMode();
+
+                // Show save location to user
+                new AlertDialog.Builder(this)
+                        .setTitle("PDF Saved Successfully")
+                        .setMessage("Your edited PDF has been saved to:\n\n" + locationToShow + "\n\nWould you like to open it?")
+                        .setPositiveButton("Open", (d, w) -> {
+                            Intent intent = new Intent(this, PdfViewerActivity.class);
+                            intent.putExtra("file_path", pathToOpen);
+                            intent.putExtra("file_name", fileNameToOpen);
+                            startActivity(intent);
+                            finish();
+                        })
+                        .setNegativeButton("Close", null)
+                        .show();
+            });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            });
+        }
     }
 
     private void saveDocx(File file, String text) throws Exception {
@@ -421,6 +528,131 @@ public class DocViewerActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void saveToOriginalPdf() {
+        if (!isFromPdf || originalPdfPath == null || originalPdfPath.isEmpty()) {
+            Toast.makeText(this, "No original PDF to save to", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String textToSave = isEditMode ? binding.etContent.getText().toString() : documentText;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Save to Original PDF")
+                .setMessage("This will REPLACE the original PDF file:\n\n" + originalPdfName + "\n\nAre you sure?")
+                .setPositiveButton("Replace", (dialog, which) -> {
+                    binding.progressBar.setVisibility(View.VISIBLE);
+                    executor.execute(() -> {
+                        try {
+                            // Create temp PDF with matching page structure
+                            File tempPdf = WordToPdfConverter.convertToPdfMatchingOriginal(
+                                    textToSave, originalPdfPath, getCacheDir(), "temp_save.pdf");
+
+                            // Copy to original PDF location
+                            File originalFile = new File(originalPdfPath);
+                            try (FileInputStream in = new FileInputStream(tempPdf);
+                                 FileOutputStream out = new FileOutputStream(originalFile)) {
+                                byte[] buffer = new byte[4096];
+                                int bytesRead;
+                                while ((bytesRead = in.read(buffer)) != -1) {
+                                    out.write(buffer, 0, bytesRead);
+                                }
+                            }
+
+                            // Clean up temp file
+                            tempPdf.delete();
+
+                            documentText = textToSave;
+                            originalText = textToSave;
+
+                            runOnUiThread(() -> {
+                                binding.progressBar.setVisibility(View.GONE);
+                                hasChanges = false;
+                                Toast.makeText(this, "Saved to original PDF!", Toast.LENGTH_SHORT).show();
+
+                                new AlertDialog.Builder(this)
+                                        .setTitle("Saved Successfully")
+                                        .setMessage("Your changes have been saved to:\n\n" + originalPdfName + "\n\nWould you like to open it?")
+                                        .setPositiveButton("Open PDF", (d, w) -> {
+                                            Intent intent = new Intent(this, PdfViewerActivity.class);
+                                            intent.putExtra("file_path", originalPdfPath);
+                                            intent.putExtra("file_name", originalPdfName);
+                                            startActivity(intent);
+                                            finish();
+                                        })
+                                        .setNegativeButton("Continue Editing", null)
+                                        .show();
+                            });
+
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            runOnUiThread(() -> {
+                                binding.progressBar.setVisibility(View.GONE);
+                                Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveAsPdf() {
+        String textToSave = isEditMode ? binding.etContent.getText().toString() : documentText;
+
+        // Create dialog for file name
+        android.widget.EditText input = new android.widget.EditText(this);
+        String baseName = fileName.contains(".") ?
+                fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        input.setText(baseName + "_edited");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Save As PDF")
+                .setMessage("Enter file name for PDF")
+                .setView(input)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    String newName = input.getText().toString().trim();
+                    if (!newName.isEmpty()) {
+                        binding.progressBar.setVisibility(View.VISIBLE);
+                        executor.execute(() -> {
+                            try {
+                                File pdfFile = WordToPdfConverter.convertToPdf(
+                                        textToSave,
+                                        getCacheDir(),
+                                        newName
+                                );
+
+                                runOnUiThread(() -> {
+                                    binding.progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(this, "Saved as PDF: " + pdfFile.getName(), Toast.LENGTH_LONG).show();
+
+                                    // Ask if user wants to open the PDF
+                                    new AlertDialog.Builder(this)
+                                            .setTitle("PDF Created")
+                                            .setMessage("Would you like to open the PDF?")
+                                            .setPositiveButton("Open", (d, w) -> {
+                                                Intent intent = new Intent(this, PdfViewerActivity.class);
+                                                intent.putExtra("file_path", pdfFile.getAbsolutePath());
+                                                intent.putExtra("file_name", pdfFile.getName());
+                                                startActivity(intent);
+                                            })
+                                            .setNegativeButton("No", null)
+                                            .show();
+                                });
+
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                runOnUiThread(() -> {
+                                    binding.progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(this, "Error creating PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                });
+                            }
+                        });
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private void showUnsavedChangesDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Unsaved Changes")
@@ -439,6 +671,11 @@ public class DocViewerActivity extends AppCompatActivity {
             optionsMenu.findItem(R.id.action_undo).setVisible(isEditMode);
             optionsMenu.findItem(R.id.action_redo).setVisible(isEditMode);
             optionsMenu.findItem(R.id.action_save).setVisible(isEditMode);
+            // Show "Save to Original PDF" only if document came from PDF conversion
+            MenuItem saveToOriginal = optionsMenu.findItem(R.id.action_save_to_original);
+            if (saveToOriginal != null) {
+                saveToOriginal.setVisible(isFromPdf);
+            }
         }
     }
 
@@ -455,109 +692,6 @@ public class DocViewerActivity extends AppCompatActivity {
             fontSize -= 2f;
             binding.tvContent.setTextSize(fontSize);
             binding.etContent.setTextSize(fontSize);
-        }
-    }
-
-    private void showSearch() {
-        binding.searchBar.setVisibility(View.VISIBLE);
-        binding.etSearch.requestFocus();
-    }
-
-    private void hideSearch() {
-        binding.searchBar.setVisibility(View.GONE);
-        binding.etSearch.setText("");
-        if (!isEditMode) {
-            binding.tvContent.setText(documentText);
-        }
-        searchPositions.clear();
-        currentSearchIndex = -1;
-    }
-
-    private void performSearch(String query) {
-        if (query == null || query.isEmpty() || documentText.isEmpty()) {
-            binding.tvSearchCount.setText("");
-            return;
-        }
-
-        currentSearchQuery = query;
-        searchPositions.clear();
-        currentSearchIndex = -1;
-
-        String textToSearch = isEditMode ? binding.etContent.getText().toString() : documentText;
-
-        Pattern pattern = Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(textToSearch);
-
-        while (matcher.find()) {
-            searchPositions.add(matcher.start());
-        }
-
-        if (searchPositions.isEmpty()) {
-            binding.tvSearchCount.setText(R.string.no_results);
-            if (!isEditMode) {
-                binding.tvContent.setText(documentText);
-            }
-        } else {
-            currentSearchIndex = 0;
-            if (!isEditMode) {
-                highlightSearchResults();
-            }
-            updateSearchCount();
-        }
-    }
-
-    private void highlightSearchResults() {
-        if (searchPositions.isEmpty() || currentSearchQuery.isEmpty()) return;
-
-        SpannableString spannableString = new SpannableString(documentText);
-
-        for (int i = 0; i < searchPositions.size(); i++) {
-            int start = searchPositions.get(i);
-            int end = start + currentSearchQuery.length();
-
-            int color = (i == currentSearchIndex) ?
-                    Color.YELLOW : Color.parseColor("#FFEB3B");
-
-            spannableString.setSpan(
-                    new BackgroundColorSpan(color),
-                    start, end,
-                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-            );
-        }
-
-        binding.tvContent.setText(spannableString);
-
-        if (currentSearchIndex >= 0 && currentSearchIndex < searchPositions.size()) {
-            scrollToPosition(searchPositions.get(currentSearchIndex));
-        }
-    }
-
-    private void navigateSearch(int direction) {
-        if (searchPositions.isEmpty()) return;
-
-        currentSearchIndex += direction;
-        if (currentSearchIndex >= searchPositions.size()) {
-            currentSearchIndex = 0;
-        } else if (currentSearchIndex < 0) {
-            currentSearchIndex = searchPositions.size() - 1;
-        }
-
-        if (!isEditMode) {
-            highlightSearchResults();
-        }
-        updateSearchCount();
-    }
-
-    private void updateSearchCount() {
-        binding.tvSearchCount.setText(String.format("%d/%d",
-                currentSearchIndex + 1, searchPositions.size()));
-    }
-
-    private void scrollToPosition(int position) {
-        if (binding.tvContent.getLayout() != null) {
-            int line = binding.tvContent.getLayout().getLineForOffset(position);
-            int y = binding.tvContent.getLayout().getLineTop(line);
-            binding.scrollView.smoothScrollTo(0, y);
         }
     }
 
@@ -594,18 +728,17 @@ public class DocViewerActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.action_search) {
-            if (binding.searchBar.getVisibility() == View.VISIBLE) {
-                hideSearch();
-            } else {
-                showSearch();
-            }
-            return true;
-        } else if (id == R.id.action_save) {
+        if (id == R.id.action_save) {
             saveDocument();
             return true;
         } else if (id == R.id.action_save_as) {
             saveAs();
+            return true;
+        } else if (id == R.id.action_save_as_pdf) {
+            saveAsPdf();
+            return true;
+        } else if (id == R.id.action_save_to_original) {
+            saveToOriginalPdf();
             return true;
         } else if (id == R.id.action_share) {
             shareDocument();

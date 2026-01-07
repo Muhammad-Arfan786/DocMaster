@@ -14,7 +14,6 @@ import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -35,10 +34,18 @@ import com.docreader.databinding.BottomSheetPdfEditorBinding;
 import com.docreader.models.Note;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.NotesManager;
+import com.docreader.utils.PdfCoverReplace;
 import com.docreader.utils.PdfEditManager;
 import com.docreader.utils.PdfPageManager;
+import com.docreader.utils.PdfTextEditor;
 import com.docreader.utils.PdfToWordConverter;
+import com.docreader.utils.PdfAnnotationEditor;
+import com.docreader.utils.VisualPdfEditor;
+import com.docreader.utils.PdfImageCopyEditor;
+import com.docreader.utils.PdfCopyEditor;
+import com.docreader.utils.PdfTools;
 import com.docreader.views.DrawingView;
+import com.docreader.views.TextBlockOverlayView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.itextpdf.kernel.geom.PageSize;
 
@@ -85,6 +92,18 @@ public class PdfViewerActivity extends AppCompatActivity {
     // Merge PDFs
     private List<String> pdfsToMerge = new ArrayList<>();
 
+    // Edit Text mode (Cover & Replace)
+    private boolean isEditTextMode = false;
+    private List<PdfCoverReplace.EditOperation> editOperations = new ArrayList<>();
+    private int editTextColor = Color.BLACK;
+    private float editTextSize = 12f;
+    private int selectedPageIndex = -1;
+
+    // Visual Edit mode (Tap-to-edit like Word)
+    private boolean isVisualEditMode = false;
+    private List<VisualPdfEditor.TextBlock> visualTextBlocks = new ArrayList<>();
+    private TextBlockOverlayView textBlockOverlay;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -106,9 +125,88 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         setupToolbar();
         setupControls();
-        setupSearch();
         setupEditToolbar();
         loadPdf();
+
+        // Check if opened with a specific tool action from main page
+        handleToolAction();
+    }
+
+    /**
+     * Handle tool action passed from MainActivity
+     */
+    private void handleToolAction() {
+        String toolAction = getIntent().getStringExtra("tool_action");
+        if (toolAction == null) return;
+
+        // Delay to ensure PDF is loaded
+        binding.getRoot().postDelayed(() -> {
+            switch (toolAction) {
+                case "merge":
+                    List<String> mergeFiles = getIntent().getStringArrayListExtra("merge_files");
+                    if (mergeFiles != null && mergeFiles.size() >= 2) {
+                        performMerge(mergeFiles);
+                    } else {
+                        showMergePdfDialog();
+                    }
+                    break;
+                case "split":
+                    showSplitPdfDialog();
+                    break;
+                case "compress":
+                    showCompressPdfDialog();
+                    break;
+                case "toword":
+                    convertToWord();
+                    break;
+                case "toimage":
+                    showPdfToImagesDialog();
+                    break;
+                case "watermark":
+                    showAddWatermarkDialog();
+                    break;
+                case "pagenumbers":
+                    showAddPageNumbersDialog();
+                    break;
+                case "delete":
+                    showDeletePagesDialog();
+                    break;
+                case "rotate":
+                    showRotatePagesDialog();
+                    break;
+                case "copy":
+                    showCopyPdfDialog();
+                    break;
+                case "edit":
+                    // Enable edit mode
+                    enterEditMode();
+                    break;
+                case "extract":
+                    showExtractPagesToolDialog();
+                    break;
+            }
+        }, 500);
+    }
+
+    /**
+     * Perform merge with pre-selected files
+     */
+    private void performMerge(List<String> filePaths) {
+        new AlertDialog.Builder(this)
+                .setTitle("Merge PDFs")
+                .setMessage("Merge " + filePaths.size() + " PDF files?")
+                .setPositiveButton("Merge", (dialog, which) -> {
+                    try {
+                        File outputDir = new File(getCacheDir(), "edited");
+                        String outputName = "merged_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".pdf";
+                        PdfTools.PdfResult result = PdfTools.mergePdfs(filePaths, outputDir, outputName);
+                        showToolResultDialog(result, "Merge PDFs");
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Merge error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void setupToolbar() {
@@ -128,17 +226,6 @@ public class PdfViewerActivity extends AppCompatActivity {
         binding.btnNextPage.setOnClickListener(v -> goToNextPage());
         binding.fabSaveEdit.setOnClickListener(v -> saveEditedPdf());
         updateZoomLabel();
-    }
-
-    private void setupSearch() {
-        binding.btnCloseSearch.setOnClickListener(v -> hideSearch());
-        binding.etSearch.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performSearch();
-                return true;
-            }
-            return false;
-        });
     }
 
     private void setupEditToolbar() {
@@ -1130,20 +1217,6 @@ public class PdfViewerActivity extends AppCompatActivity {
         }
     }
 
-    private void showSearch() {
-        binding.searchBar.setVisibility(View.VISIBLE);
-        binding.etSearch.requestFocus();
-    }
-
-    private void hideSearch() {
-        binding.searchBar.setVisibility(View.GONE);
-        binding.etSearch.setText("");
-    }
-
-    private void performSearch() {
-        Toast.makeText(this, "Text search not available in native viewer", Toast.LENGTH_SHORT).show();
-    }
-
     private void showPageNotesDialog() {
         List<Note> pageNotes = notesManager.getNotesForPage(filePath, currentPage);
         if (pageNotes.isEmpty()) {
@@ -1204,31 +1277,335 @@ public class PdfViewerActivity extends AppCompatActivity {
     }
 
 
-    private void convertToWord() {
+    private void showAddTextDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        // Page number
+        android.widget.TextView pageLabel = new android.widget.TextView(this);
+        pageLabel.setText("Page number (1-" + totalPages + "):");
+        layout.addView(pageLabel);
+
+        EditText pageInput = new EditText(this);
+        pageInput.setText(String.valueOf(currentPage + 1));
+        pageInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(pageInput);
+
+        // Position info
+        android.widget.TextView posLabel = new android.widget.TextView(this);
+        posLabel.setText("\nPosition (% from left, % from top):");
+        layout.addView(posLabel);
+
+        LinearLayout posRow = new LinearLayout(this);
+        posRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        EditText leftInput = new EditText(this);
+        leftInput.setHint("Left %");
+        leftInput.setText("10");
+        leftInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        leftInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        posRow.addView(leftInput);
+
+        EditText topInput = new EditText(this);
+        topInput.setHint("Top %");
+        topInput.setText("10");
+        topInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        topInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        posRow.addView(topInput);
+
+        layout.addView(posRow);
+
+        // Text input
+        android.widget.TextView textLabel = new android.widget.TextView(this);
+        textLabel.setText("\nText to add:");
+        layout.addView(textLabel);
+
+        EditText textInput = new EditText(this);
+        textInput.setHint("Enter your text here");
+        textInput.setMinLines(3);
+        layout.addView(textInput);
+
+        // Font size
+        android.widget.TextView sizeLabel = new android.widget.TextView(this);
+        sizeLabel.setText("\nFont size:");
+        layout.addView(sizeLabel);
+
+        EditText sizeInput = new EditText(this);
+        sizeInput.setText("12");
+        sizeInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(sizeInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Text to PDF")
+                .setView(layout)
+                .setPositiveButton("Add Text", (dialog, which) -> {
+                    try {
+                        int pageNum = Integer.parseInt(pageInput.getText().toString());
+                        float leftPct = Float.parseFloat(leftInput.getText().toString()) / 100f;
+                        float topPct = Float.parseFloat(topInput.getText().toString()) / 100f;
+                        String text = textInput.getText().toString();
+                        float fontSize = Float.parseFloat(sizeInput.getText().toString());
+
+                        if (text.isEmpty()) {
+                            Toast.makeText(this, "Please enter text", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        addTextToPdf(pageNum, leftPct, topPct, text, fontSize);
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Invalid input", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void addTextToPdf(int pageNumber, float leftPct, float topPct, String text, float fontSize) {
         binding.progressBar.setVisibility(View.VISIBLE);
-        Toast.makeText(this, "Converting PDF to Word...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             try {
-                String docxPath = PdfToWordConverter.convertToDocx(filePath, getCacheDir());
+                // Get page dimensions
+                float[] dims = PdfCoverReplace.getPageDimensions(filePath, pageNumber);
+                if (dims == null) {
+                    throw new Exception("Cannot read page dimensions");
+                }
+
+                float pdfWidth = dims[0];
+                float pdfHeight = dims[1];
+
+                // Calculate position (convert from top-left to PDF bottom-left coords)
+                float x = leftPct * pdfWidth;
+                float y = pdfHeight - (topPct * pdfHeight) - fontSize;
+
+                // Create output file
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String outputName = baseName + "_edited.pdf";
+
+                File outputFile = PdfAnnotationEditor.addTransparentText(
+                        filePath, getCacheDir(), outputName,
+                        pageNumber, x, y, text, fontSize, Color.BLACK, 1.0f);
 
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
 
                     new AlertDialog.Builder(this)
-                            .setTitle("Conversion Complete")
-                            .setMessage("PDF converted to Word document.\n\nYou can now edit it with your keyboard.")
-                            .setPositiveButton("Open & Edit", (dialog, which) -> {
-                                Intent intent = new Intent(this, DocViewerActivity.class);
-                                intent.putExtra("file_path", docxPath);
-                                intent.putExtra("file_name", new File(docxPath).getName());
+                            .setTitle("Text Added")
+                            .setMessage("Text has been added to the PDF.\n\nThe original PDF is unchanged.")
+                            .setPositiveButton("Open New PDF", (d, w) -> {
+                                Intent intent = new Intent(this, PdfViewerActivity.class);
+                                intent.putExtra("file_path", outputFile.getAbsolutePath());
+                                intent.putExtra("file_name", outputFile.getName());
                                 startActivity(intent);
+                                finish();
+                            })
+                            .setNeutralButton("Replace Original", (d, w) -> {
+                                saveEditedToOriginal(outputFile);
                             })
                             .setNegativeButton("Cancel", null)
                             .show();
                 });
 
             } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void showAddStickyNoteDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        // Page number
+        android.widget.TextView pageLabel = new android.widget.TextView(this);
+        pageLabel.setText("Page number (1-" + totalPages + "):");
+        layout.addView(pageLabel);
+
+        EditText pageInput = new EditText(this);
+        pageInput.setText(String.valueOf(currentPage + 1));
+        pageInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(pageInput);
+
+        // Note text
+        android.widget.TextView textLabel = new android.widget.TextView(this);
+        textLabel.setText("\nNote content:");
+        layout.addView(textLabel);
+
+        EditText textInput = new EditText(this);
+        textInput.setHint("Enter your note here");
+        textInput.setMinLines(3);
+        layout.addView(textInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Sticky Note")
+                .setMessage("Adds a note icon that shows your text when clicked.")
+                .setView(layout)
+                .setPositiveButton("Add Note", (dialog, which) -> {
+                    try {
+                        int pageNum = Integer.parseInt(pageInput.getText().toString());
+                        String text = textInput.getText().toString();
+
+                        if (text.isEmpty()) {
+                            Toast.makeText(this, "Please enter note text", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        addStickyNoteToPdf(pageNum, text);
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Invalid input", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void addStickyNoteToPdf(int pageNumber, String noteText) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Get page dimensions
+                float[] dims = PdfCoverReplace.getPageDimensions(filePath, pageNumber);
+                if (dims == null) {
+                    throw new Exception("Cannot read page dimensions");
+                }
+
+                float pdfHeight = dims[1];
+
+                // Position note at top-right of page
+                float x = dims[0] - 50;
+                float y = pdfHeight - 50;
+
+                // Create sticky note
+                List<PdfAnnotationEditor.TextNote> notes = new ArrayList<>();
+                PdfAnnotationEditor.TextNote note = new PdfAnnotationEditor.TextNote(pageNumber, x, y, noteText);
+                note.asSticky();
+                note.setColors(Color.YELLOW, Color.YELLOW);
+                notes.add(note);
+
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String outputName = baseName + "_noted.pdf";
+
+                File outputFile = PdfAnnotationEditor.addTextAnnotations(
+                        filePath, getCacheDir(), outputName, notes);
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+
+                    new AlertDialog.Builder(this)
+                            .setTitle("Note Added")
+                            .setMessage("Sticky note has been added.\n\nThe original PDF is unchanged.")
+                            .setPositiveButton("Open New PDF", (d, w) -> {
+                                Intent intent = new Intent(this, PdfViewerActivity.class);
+                                intent.putExtra("file_path", outputFile.getAbsolutePath());
+                                intent.putExtra("file_name", outputFile.getName());
+                                startActivity(intent);
+                                finish();
+                            })
+                            .setNeutralButton("Replace Original", (d, w) -> {
+                                saveEditedToOriginal(outputFile);
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void saveEditedToOriginal(File editedFile) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Copy edited file to original location
+                File originalFile = new File(filePath);
+                java.io.FileInputStream in = new java.io.FileInputStream(editedFile);
+                java.io.FileOutputStream out = new java.io.FileOutputStream(originalFile);
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                }
+                in.close();
+                out.close();
+
+                // Delete temp file
+                editedFile.delete();
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Saved to original file!", Toast.LENGTH_SHORT).show();
+                    // Reload the PDF
+                    loadPdf();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void convertToWord() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "Converting PDF to Word...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            try {
+                // Convert PDF to Word document
+                String docxPath = PdfToWordConverter.convertToDocx(filePath, getCacheDir());
+                File docxFile = new File(docxPath);
+
+                // Get page count for info
+                int pageCount = PdfTools.getPageCount(filePath);
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+
+                    new AlertDialog.Builder(this)
+                            .setTitle("PDF Converted to Word!")
+                            .setMessage("Successfully converted " + pageCount + " page(s).\n\n" +
+                                    "File: " + docxFile.getName() + "\n\n" +
+                                    "You can now:\n" +
+                                    "• Edit the text freely\n" +
+                                    "• Tap 'Save PDF' when done to save back as PDF")
+                            .setPositiveButton("Open & Edit Now", (dialog, which) -> {
+                                // Open DocViewerActivity for editing
+                                Intent intent = new Intent(this, DocViewerActivity.class);
+                                intent.putExtra("file_path", docxPath);
+                                intent.putExtra("file_name", docxFile.getName());
+                                intent.putExtra("original_pdf_path", filePath);
+                                intent.putExtra("original_pdf_name", fileName);
+                                startActivity(intent);
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .setCancelable(false)
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error converting: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -1236,6 +1613,794 @@ public class PdfViewerActivity extends AppCompatActivity {
             }
         }).start();
     }
+
+    // ==================== EDIT TEXT MODE (Cover & Replace) ====================
+
+    private void toggleEditTextMode() {
+        isEditTextMode = !isEditTextMode;
+
+        if (isEditTextMode) {
+            // Exit draw mode if active
+            if (isEditMode) {
+                toggleEditMode();
+            }
+
+            Toast.makeText(this, "Tap on the page where you want to edit text", Toast.LENGTH_LONG).show();
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle("EDIT MODE - Tap page to edit");
+            }
+
+            // Set click listeners on page views for edit mode
+            for (int i = 0; i < pageViews.size(); i++) {
+                ImageView pageView = pageViews.get(i);
+                final int pageIndex = i;
+
+                pageView.setOnClickListener(v -> {
+                    if (isEditTextMode) {
+                        selectedPageIndex = pageIndex;
+                        showEditAreaDialog(pageIndex + 1, pageView);
+                    }
+                });
+            }
+        } else {
+            // Save edits if any, then exit mode
+            if (!editOperations.isEmpty()) {
+                saveEditOperations();
+            } else {
+                exitEditTextMode();
+            }
+        }
+    }
+
+    private void exitEditTextMode() {
+        isEditTextMode = false;
+        selectedPageIndex = -1;
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(fileName);
+        }
+
+        // Restore normal click listeners
+        for (int i = 0; i < pageViews.size(); i++) {
+            ImageView pageView = pageViews.get(i);
+            final int pageIndex = i;
+            pageView.setOnClickListener(v -> {
+                currentPage = pageIndex;
+                updatePageInfo();
+            });
+        }
+
+        Toast.makeText(this, "Edit mode closed", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showEditAreaDialog(int pageNumber, ImageView pageView) {
+        // Get PDF page dimensions
+        float[] pageDims = PdfCoverReplace.getPageDimensions(filePath, pageNumber);
+        if (pageDims == null) {
+            Toast.makeText(this, "Error reading page dimensions", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        float pdfWidth = pageDims[0];
+        float pdfHeight = pageDims[1];
+
+        // Create dialog layout
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(40, 20, 40, 20);
+
+        // Instructions
+        android.widget.TextView instructions = new android.widget.TextView(this);
+        instructions.setText("Enter area to edit (% from top-left):\nPage size: " + (int)pdfWidth + " x " + (int)pdfHeight);
+        instructions.setPadding(0, 0, 0, 20);
+        layout.addView(instructions);
+
+        // Position inputs in a grid
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+
+        EditText leftInput = new EditText(this);
+        leftInput.setHint("Left %");
+        leftInput.setText("10");
+        leftInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        leftInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row1.addView(leftInput);
+
+        EditText topInput = new EditText(this);
+        topInput.setHint("Top %");
+        topInput.setText("10");
+        topInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        topInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row1.addView(topInput);
+        layout.addView(row1);
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+
+        EditText widthInput = new EditText(this);
+        widthInput.setHint("Width %");
+        widthInput.setText("30");
+        widthInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        widthInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row2.addView(widthInput);
+
+        EditText heightInput = new EditText(this);
+        heightInput.setHint("Height %");
+        heightInput.setText("5");
+        heightInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        heightInput.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row2.addView(heightInput);
+        layout.addView(row2);
+
+        // Replacement text
+        EditText textInput = new EditText(this);
+        textInput.setHint("Enter replacement text");
+        textInput.setMinLines(2);
+        layout.addView(textInput);
+
+        // Font size
+        EditText sizeInput = new EditText(this);
+        sizeInput.setHint("Font size (default: 12)");
+        sizeInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        sizeInput.setText(String.valueOf((int) editTextSize));
+        layout.addView(sizeInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Edit Text on Page " + pageNumber)
+                .setView(layout)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    try {
+                        float leftPct = Float.parseFloat(leftInput.getText().toString()) / 100f;
+                        float topPct = Float.parseFloat(topInput.getText().toString()) / 100f;
+                        float widthPct = Float.parseFloat(widthInput.getText().toString()) / 100f;
+                        float heightPct = Float.parseFloat(heightInput.getText().toString()) / 100f;
+
+                        // Convert percentage to PDF coordinates
+                        float pdfX = leftPct * pdfWidth;
+                        float pdfW = widthPct * pdfWidth;
+                        float pdfH = heightPct * pdfHeight;
+                        float pdfY = pdfHeight - (topPct * pdfHeight) - pdfH; // PDF Y is from bottom
+
+                        String newText = textInput.getText().toString();
+                        try {
+                            editTextSize = Float.parseFloat(sizeInput.getText().toString());
+                        } catch (NumberFormatException e) {
+                            editTextSize = 12f;
+                        }
+
+                        // Add edit operation
+                        editOperations.add(new PdfCoverReplace.EditOperation(
+                                pageNumber, pdfX, pdfY, pdfW, pdfH,
+                                newText, editTextSize, editTextColor
+                        ));
+
+                        Toast.makeText(this, "Edit added! Tap another area or tap 'Edit Text' to save.", Toast.LENGTH_SHORT).show();
+
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Please enter valid numbers", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Color", (dialog, which) -> {
+                    showEditColorPickerSimple(pageNumber, pageView);
+                })
+                .show();
+    }
+
+    private void showEditColorPickerSimple(int pageNumber, ImageView pageView) {
+        String[] colors = {"Black", "Red", "Blue", "Green", "White"};
+        int[] colorValues = {Color.BLACK, Color.RED, Color.BLUE, Color.GREEN, Color.WHITE};
+
+        new AlertDialog.Builder(this)
+                .setTitle("Select Text Color")
+                .setItems(colors, (dialog, which) -> {
+                    editTextColor = colorValues[which];
+                    Toast.makeText(this, colors[which] + " selected", Toast.LENGTH_SHORT).show();
+                    showEditAreaDialog(pageNumber, pageView);
+                })
+                .show();
+    }
+
+    private void saveEditOperations() {
+        if (editOperations.isEmpty()) {
+            Toast.makeText(this, "No edits to save", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Generate output file name
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String outputFileName = baseName + "_edited.pdf";
+
+                // Apply edits to PDF
+                File outputFile = PdfCoverReplace.applyEdits(
+                        filePath,
+                        getCacheDir(),
+                        outputFileName,
+                        editOperations
+                );
+
+                // Copy to Downloads folder using MediaStore (Android 10+)
+                String savedPath = outputFile.getAbsolutePath();
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    android.content.ContentValues values = new android.content.ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, outputFileName);
+                    values.put(MediaStore.Downloads.MIME_TYPE, "application/pdf");
+                    values.put(MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+
+                    Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                             java.io.FileInputStream in = new java.io.FileInputStream(outputFile)) {
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            while ((bytesRead = in.read(buffer)) != -1) {
+                                out.write(buffer, 0, bytesRead);
+                            }
+                        }
+                    }
+                }
+
+                String finalPath = savedPath;
+                String finalFileName = outputFileName;
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    editOperations.clear();
+                    isEditTextMode = false;
+
+                    new AlertDialog.Builder(this)
+                            .setTitle("PDF Saved!")
+                            .setMessage("Your edited PDF saved to:\n\nDownloads/" + finalFileName + "\n\nOriginal PDF is unchanged.")
+                            .setPositiveButton("Open Edited", (d, w) -> {
+                                filePath = finalPath;
+                                fileName = finalFileName;
+                                try {
+                                    if (pdfRenderer != null) pdfRenderer.close();
+                                    if (fileDescriptor != null) fileDescriptor.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                loadPdf();
+                                if (getSupportActionBar() != null) {
+                                    getSupportActionBar().setTitle(fileName);
+                                }
+                            })
+                            .setNegativeButton("Close", (d, w) -> {
+                                exitEditTextMode();
+                            })
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    // ==================== VISUAL EDIT MODE (Tap-to-Edit) ====================
+
+    private void toggleVisualEditMode() {
+        if (isVisualEditMode) {
+            exitVisualEditMode();
+        } else {
+            enterVisualEditMode();
+        }
+    }
+
+    private void enterVisualEditMode() {
+        // Exit other modes if active
+        if (isEditMode) {
+            finishExitEditMode();
+        }
+        if (isEditTextMode) {
+            exitEditTextMode();
+        }
+
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        // Extract text blocks for current page in background
+        new Thread(() -> {
+            try {
+                // Extract text blocks for current page
+                List<VisualPdfEditor.TextBlock> blocks =
+                        VisualPdfEditor.extractTextBlocksForPage(filePath, currentPage + 1);
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+
+                    if (blocks.isEmpty()) {
+                        Toast.makeText(this, "No text found on this page", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    visualTextBlocks.clear();
+                    visualTextBlocks.addAll(blocks);
+
+                    isVisualEditMode = true;
+
+                    // Show instructions
+                    showVisualEditInstructions(blocks.size());
+
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle("VISUAL EDIT - Tap text to edit");
+                    }
+
+                    // Show clickable text block list
+                    showTextBlocksList();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error extracting text: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void showVisualEditInstructions(int blockCount) {
+        new AlertDialog.Builder(this)
+                .setTitle("Visual Edit Mode")
+                .setMessage("Found " + blockCount + " text blocks on page " + (currentPage + 1) + ".\n\n" +
+                        "How to edit:\n" +
+                        "1. Tap on any text line to edit it\n" +
+                        "2. Type your new text\n" +
+                        "3. Save when done\n\n" +
+                        "Note: The original font/size may not be exactly preserved.")
+                .setPositiveButton("Got it", null)
+                .show();
+    }
+
+    private void showTextBlocksList() {
+        if (visualTextBlocks.isEmpty()) {
+            Toast.makeText(this, "No text blocks found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Create list of text blocks for selection
+        String[] items = new String[visualTextBlocks.size()];
+        for (int i = 0; i < visualTextBlocks.size(); i++) {
+            String text = visualTextBlocks.get(i).text;
+            // Truncate long text for display
+            if (text.length() > 50) {
+                text = text.substring(0, 47) + "...";
+            }
+            // Mark edited blocks
+            if (visualTextBlocks.get(i).isEdited) {
+                items[i] = "[EDITED] " + text;
+            } else {
+                items[i] = (i + 1) + ". " + text;
+            }
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Tap a text line to edit (Page " + (currentPage + 1) + ")");
+        builder.setItems(items, (dialog, which) -> {
+            showEditTextBlockDialog(visualTextBlocks.get(which), which);
+        });
+        builder.setPositiveButton("Save Edits", (dialog, which) -> {
+            saveVisualEdits();
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> {
+            exitVisualEditMode();
+        });
+        builder.setNeutralButton("Refresh List", (dialog, which) -> {
+            showTextBlocksList();
+        });
+        builder.setOnCancelListener(dialog -> {
+            // Show list again if dismissed without action
+            if (isVisualEditMode && hasVisualEdits()) {
+                askToSaveVisualEdits();
+            } else if (isVisualEditMode) {
+                showTextBlocksList();
+            }
+        });
+        builder.show();
+    }
+
+    private void showEditTextBlockDialog(VisualPdfEditor.TextBlock block, int index) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        // Show original text
+        android.widget.TextView originalLabel = new android.widget.TextView(this);
+        originalLabel.setText("Original text:");
+        originalLabel.setTextColor(Color.GRAY);
+        layout.addView(originalLabel);
+
+        android.widget.TextView originalText = new android.widget.TextView(this);
+        originalText.setText(block.text);
+        originalText.setPadding(0, 5, 0, 20);
+        originalText.setTextColor(Color.BLACK);
+        layout.addView(originalText);
+
+        // Edit text input
+        android.widget.TextView editLabel = new android.widget.TextView(this);
+        editLabel.setText("New text:");
+        layout.addView(editLabel);
+
+        EditText editInput = new EditText(this);
+        editInput.setText(block.isEdited ? block.newText : block.text);
+        editInput.setMinLines(2);
+        editInput.setSelection(editInput.getText().length()); // Cursor at end
+        layout.addView(editInput);
+
+        // Position info
+        android.widget.TextView posInfo = new android.widget.TextView(this);
+        posInfo.setText(String.format("\nPosition: %.0f, %.0f (Page %d)", block.pdfX, block.pdfY, block.pageNumber));
+        posInfo.setTextColor(Color.GRAY);
+        posInfo.setTextSize(11);
+        layout.addView(posInfo);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Edit Text")
+                .setView(layout)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    String newText = editInput.getText().toString();
+                    if (!newText.equals(block.text)) {
+                        block.edit(newText);
+                        Toast.makeText(this, "Text updated", Toast.LENGTH_SHORT).show();
+                    }
+                    showTextBlocksList();
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    showTextBlocksList();
+                })
+                .setNeutralButton("Revert", (dialog, which) -> {
+                    block.isEdited = false;
+                    block.newText = null;
+                    Toast.makeText(this, "Reverted to original", Toast.LENGTH_SHORT).show();
+                    showTextBlocksList();
+                })
+                .show();
+    }
+
+    private boolean hasVisualEdits() {
+        for (VisualPdfEditor.TextBlock block : visualTextBlocks) {
+            if (block.isEdited) return true;
+        }
+        return false;
+    }
+
+    private void askToSaveVisualEdits() {
+        new AlertDialog.Builder(this)
+                .setTitle("Unsaved Edits")
+                .setMessage("You have unsaved text edits. What would you like to do?")
+                .setPositiveButton("Save", (d, w) -> saveVisualEdits())
+                .setNegativeButton("Discard", (d, w) -> exitVisualEditMode())
+                .setNeutralButton("Continue Editing", (d, w) -> showTextBlocksList())
+                .show();
+    }
+
+    private void saveVisualEdits() {
+        // Filter to only edited blocks
+        List<VisualPdfEditor.TextBlock> editedBlocks = new ArrayList<>();
+        for (VisualPdfEditor.TextBlock block : visualTextBlocks) {
+            if (block.isEdited) {
+                editedBlocks.add(block);
+            }
+        }
+
+        if (editedBlocks.isEmpty()) {
+            Toast.makeText(this, "No edits to save", Toast.LENGTH_SHORT).show();
+            exitVisualEditMode();
+            return;
+        }
+
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Generate output file name
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String outputFileName = baseName + "_edited.pdf";
+
+                // Use image-based copy editor for exact visual preservation
+                File outputFile = PdfImageCopyEditor.applyVisualEdits(
+                        this,
+                        filePath,
+                        getCacheDir(),
+                        outputFileName,
+                        editedBlocks
+                );
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+
+                    new AlertDialog.Builder(this)
+                            .setTitle("Edits Saved!")
+                            .setMessage("Saved " + editedBlocks.size() + " text edit(s).\n\n" +
+                                    "The original PDF is unchanged.")
+                            .setPositiveButton("Open Edited PDF", (d, w) -> {
+                                // Open the new file in this activity
+                                filePath = outputFile.getAbsolutePath();
+                                fileName = outputFile.getName();
+                                try {
+                                    if (pdfRenderer != null) pdfRenderer.close();
+                                    if (fileDescriptor != null) fileDescriptor.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                loadPdf();
+                                if (getSupportActionBar() != null) {
+                                    getSupportActionBar().setTitle(fileName);
+                                }
+                                exitVisualEditMode();
+                            })
+                            .setNeutralButton("Save to Original", (d, w) -> {
+                                saveEditedToOriginal(outputFile);
+                                exitVisualEditMode();
+                            })
+                            .setNegativeButton("Close", (d, w) -> {
+                                exitVisualEditMode();
+                            })
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void exitVisualEditMode() {
+        isVisualEditMode = false;
+        visualTextBlocks.clear();
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(fileName);
+        }
+
+        Toast.makeText(this, "Visual edit mode closed", Toast.LENGTH_SHORT).show();
+    }
+
+    // ==================== EDIT AS COPY (Image-based) ====================
+
+    /**
+     * Edit PDF as a copy - creates an exact visual copy and allows text editing like Word
+     * The original PDF format is 100% preserved because we use image-based rendering
+     */
+    private void editAsCopy() {
+        new AlertDialog.Builder(this)
+                .setTitle("Edit Copy (Like Word)")
+                .setMessage("This will:\n\n" +
+                        "1. Create an exact visual copy of your PDF\n" +
+                        "2. Open a text editor where you can edit like Word\n" +
+                        "3. Save your changes to the PDF copy\n\n" +
+                        "The original PDF will NOT be changed.\n" +
+                        "The copy will look exactly like the original!")
+                .setPositiveButton("Continue", (d, w) -> startEditAsCopy())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void startEditAsCopy() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Extract all text from PDF with page markers
+                String allText = PdfCopyEditor.getAllText(filePath);
+                int pageCount = PdfCopyEditor.getPageCount(filePath);
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    showCopyEditDialog(allText, pageCount);
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    private void showCopyEditDialog(String originalText, int pageCount) {
+        // Create a full-screen edit dialog
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(20, 20, 20, 20);
+
+        // Info text
+        android.widget.TextView info = new android.widget.TextView(this);
+        info.setText("Edit your PDF text below (" + pageCount + " page" + (pageCount > 1 ? "s" : "") + ").\n" +
+                     "Page markers [PAGE:n] show page breaks - don't remove them!");
+        info.setTextColor(Color.GRAY);
+        info.setPadding(0, 0, 0, 16);
+        layout.addView(info);
+
+        // Scrollable edit text
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
+        scrollView.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        EditText editText = new EditText(this);
+        editText.setText(originalText);
+        editText.setTextSize(14f);
+        editText.setMinLines(20);
+        editText.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        editText.setBackgroundColor(Color.WHITE);
+        editText.setPadding(16, 16, 16, 16);
+        scrollView.addView(editText);
+        layout.addView(scrollView);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Edit PDF Copy")
+                .setView(layout)
+                .setPositiveButton("Save as PDF", null) // Set later to prevent auto-dismiss
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Save to Original", null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            // Save as new PDF
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String editedText = editText.getText().toString();
+                if (editedText.equals(originalText)) {
+                    Toast.makeText(this, "No changes made", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                dialog.dismiss();
+                saveCopyWithEdits(editedText, false);
+            });
+
+            // Save to original (replace)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                String editedText = editText.getText().toString();
+                if (editedText.equals(originalText)) {
+                    Toast.makeText(this, "No changes made", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Replace Original?")
+                        .setMessage("This will REPLACE the original PDF file:\n\n" + fileName + "\n\nAre you sure?")
+                        .setPositiveButton("Replace", (d2, w2) -> {
+                            dialog.dismiss();
+                            saveCopyWithEdits(editedText, true);
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            });
+        });
+
+        dialog.show();
+
+        // Make dialog larger
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (int) (getResources().getDisplayMetrics().heightPixels * 0.85));
+        }
+    }
+
+    private void saveCopyWithEdits(String editedText, boolean replaceOriginal) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                // Parse edited text into page map
+                java.util.Map<Integer, String> pageEdits = PdfCopyEditor.parseEditedText(editedText);
+
+                // Generate output file name
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String outputFileName = baseName + "_edited.pdf";
+
+                // Create edited copy using image-based method
+                File outputFile = PdfCopyEditor.createEditedCopy(
+                        this,
+                        filePath,
+                        getCacheDir(),
+                        outputFileName,
+                        pageEdits
+                );
+
+                if (replaceOriginal) {
+                    // Copy to original location
+                    File originalFile = new File(filePath);
+                    try (java.io.FileInputStream in = new java.io.FileInputStream(outputFile);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(originalFile)) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    outputFile.delete();
+
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Original PDF updated!", Toast.LENGTH_SHORT).show();
+                        // Reload the PDF
+                        reloadPdf();
+                    });
+                } else {
+                    // Save to Downloads
+                    String finalPath = outputFile.getAbsolutePath();
+                    String savedLocation = "Cache/" + outputFileName;
+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        android.content.ContentValues values = new android.content.ContentValues();
+                        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, outputFileName);
+                        values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf");
+                        values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                                android.os.Environment.DIRECTORY_DOWNLOADS);
+
+                        Uri uri = getContentResolver().insert(
+                                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                        if (uri != null) {
+                            try (java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                                 java.io.FileInputStream in = new java.io.FileInputStream(outputFile)) {
+                                byte[] buffer = new byte[4096];
+                                int bytesRead;
+                                while ((bytesRead = in.read(buffer)) != -1) {
+                                    out.write(buffer, 0, bytesRead);
+                                }
+                            }
+                            savedLocation = "Downloads/" + outputFileName;
+                        }
+                    }
+
+                    String pathToOpen = finalPath;
+                    String fileNameToOpen = outputFileName;
+                    String locationToShow = savedLocation;
+
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+
+                        new AlertDialog.Builder(this)
+                                .setTitle("PDF Saved!")
+                                .setMessage("Your edited PDF has been saved to:\n\n" + locationToShow +
+                                        "\n\nThe original PDF is unchanged.")
+                                .setPositiveButton("Open Edited PDF", (d, w) -> {
+                                    filePath = pathToOpen;
+                                    fileName = fileNameToOpen;
+                                    if (getSupportActionBar() != null) {
+                                        getSupportActionBar().setTitle(fileName);
+                                    }
+                                    reloadPdf();
+                                })
+                                .setNegativeButton("Close", null)
+                                .show();
+                    });
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
     // ==================== ACTIVITY CALLBACKS ====================
 
     @Override
@@ -1298,21 +2463,56 @@ public class PdfViewerActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.action_search) {
-            if (binding.searchBar.getVisibility() == View.VISIBLE) hideSearch();
-            else showSearch();
-            return true;
-        } else if (id == R.id.action_edit) {
+        if (id == R.id.action_edit) {
             showPdfEditorBottomSheet();
             return true;
         } else if (id == R.id.action_draw) {
             toggleEditMode();
             return true;
+        } else if (id == R.id.action_visual_edit) {
+            toggleVisualEditMode();
+            return true;
+        } else if (id == R.id.action_edit_text) {
+            toggleEditTextMode();
+            return true;
         } else if (id == R.id.action_add_note) {
             showPageNotesDialog();
             return true;
+        } else if (id == R.id.action_edit_copy) {
+            editAsCopy();
+            return true;
         } else if (id == R.id.action_convert_to_word) {
             convertToWord();
+            return true;
+        } else if (id == R.id.action_merge_pdf) {
+            showMergePdfDialog();
+            return true;
+        } else if (id == R.id.action_split_pdf) {
+            showSplitPdfDialog();
+            return true;
+        } else if (id == R.id.action_compress_pdf) {
+            showCompressPdfDialog();
+            return true;
+        } else if (id == R.id.action_add_page_numbers) {
+            showAddPageNumbersDialog();
+            return true;
+        } else if (id == R.id.action_pdf_to_images) {
+            showPdfToImagesDialog();
+            return true;
+        } else if (id == R.id.action_add_watermark) {
+            showAddWatermarkDialog();
+            return true;
+        } else if (id == R.id.action_delete_pages) {
+            showDeletePagesDialog();
+            return true;
+        } else if (id == R.id.action_rotate_pages) {
+            showRotatePagesDialog();
+            return true;
+        } else if (id == R.id.action_copy_pdf) {
+            showCopyPdfDialog();
+            return true;
+        } else if (id == R.id.action_pdf_info) {
+            showPdfInfo();
             return true;
         } else if (id == R.id.action_share) {
             shareDocument();
@@ -1323,6 +2523,561 @@ public class PdfViewerActivity extends AppCompatActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    // ==================== PDF TOOLS ====================
+
+    private void showMergePdfDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Merge PDFs")
+                .setMessage("Select multiple PDF files to merge with the current PDF.\n\nCurrent PDF will be first.")
+                .setPositiveButton("Select PDFs", (d, w) -> {
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("application/pdf");
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(intent, REQUEST_PICK_PDF_MERGE);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showSplitPdfDialog() {
+        int pageCount = totalPages;
+
+        String[] options = {"Split into single pages", "Extract specific pages"};
+
+        new AlertDialog.Builder(this)
+                .setTitle("Split PDF (" + pageCount + " pages)")
+                .setItems(options, (d, which) -> {
+                    if (which == 0) {
+                        splitIntoSinglePages();
+                    } else {
+                        showExtractPagesToolDialog();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void splitIntoSinglePages() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            PdfTools.PdfResult result = PdfTools.splitPdf(filePath, getCacheDir());
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Split PDF");
+            });
+        }).start();
+    }
+
+    private void showExtractPagesToolDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        android.widget.TextView info = new android.widget.TextView(this);
+        info.setText("Enter page numbers to extract (e.g., 1,3,5-8):");
+        layout.addView(info);
+
+        EditText input = new EditText(this);
+        input.setHint("1,2,3 or 1-5");
+        layout.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Extract Pages")
+                .setView(layout)
+                .setPositiveButton("Extract", (d, w) -> {
+                    String pagesStr = input.getText().toString();
+                    List<Integer> pages = parsePageNumbers(pagesStr, totalPages);
+                    if (pages.isEmpty()) {
+                        Toast.makeText(this, "Invalid page numbers", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    extractPagesWithTool(pages);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private List<Integer> parsePageNumbers(String input, int maxPage) {
+        List<Integer> pages = new ArrayList<>();
+        String[] parts = input.split(",");
+
+        for (String part : parts) {
+            part = part.trim();
+            if (part.contains("-")) {
+                String[] range = part.split("-");
+                if (range.length == 2) {
+                    try {
+                        int start = Integer.parseInt(range[0].trim());
+                        int end = Integer.parseInt(range[1].trim());
+                        for (int i = start; i <= end && i <= maxPage; i++) {
+                            if (i >= 1 && !pages.contains(i)) pages.add(i);
+                        }
+                    } catch (NumberFormatException e) { }
+                }
+            } else {
+                try {
+                    int page = Integer.parseInt(part);
+                    if (page >= 1 && page <= maxPage && !pages.contains(page)) {
+                        pages.add(page);
+                    }
+                } catch (NumberFormatException e) { }
+            }
+        }
+        return pages;
+    }
+
+    private void extractPagesWithTool(List<Integer> pages) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_extracted.pdf";
+
+            PdfTools.PdfResult result = PdfTools.extractPages(filePath, getCacheDir(), outputName, pages);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Extract Pages");
+            });
+        }).start();
+    }
+
+    private void showCompressPdfDialog() {
+        File inputFile = new File(filePath);
+        String sizeInfo = String.format("Current size: %.2f MB", inputFile.length() / (1024.0 * 1024.0));
+
+        new AlertDialog.Builder(this)
+                .setTitle("Compress PDF")
+                .setMessage(sizeInfo + "\n\nThis will create a compressed copy of the PDF by converting pages to optimized images.")
+                .setPositiveButton("Compress", (d, w) -> compressPdfWithTool())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void compressPdfWithTool() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_compressed.pdf";
+
+            PdfTools.PdfResult result = PdfTools.compressPdf(this, filePath, getCacheDir(), outputName);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Compress PDF");
+            });
+        }).start();
+    }
+
+    private void showAddPageNumbersDialog() {
+        String[] positions = {"Bottom Center", "Bottom Left", "Bottom Right", "Top Center", "Top Left", "Top Right"};
+        final String[] positionValues = {"bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right"};
+        final int[] selectedPosition = {0};
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Page Numbers")
+                .setSingleChoiceItems(positions, 0, (d, which) -> selectedPosition[0] = which)
+                .setPositiveButton("Add", (d, w) -> addPageNumbers(positionValues[selectedPosition[0]]))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void addPageNumbers(String position) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_numbered.pdf";
+
+            PdfTools.PdfResult result = PdfTools.addPageNumbers(filePath, getCacheDir(), outputName, position, 1);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Add Page Numbers");
+            });
+        }).start();
+    }
+
+    private void showPdfToImagesDialog() {
+        String[] formats = {"JPG (Smaller size)", "PNG (Better quality)"};
+        final String[] formatValues = {"jpg", "png"};
+        final int[] selectedFormat = {0};
+
+        new AlertDialog.Builder(this)
+                .setTitle("PDF to Images")
+                .setMessage("Convert all " + totalPages + " pages to images")
+                .setSingleChoiceItems(formats, 0, (d, which) -> selectedFormat[0] = which)
+                .setPositiveButton("Convert", (d, w) -> pdfToImages(formatValues[selectedFormat[0]]))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void pdfToImages(String format) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            File outputDir = new File(getCacheDir(), baseName + "_images");
+
+            PdfTools.PdfResult result = PdfTools.pdfToImages(this, filePath, outputDir, format, 150);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "PDF to Images");
+            });
+        }).start();
+    }
+
+    private void showAddWatermarkDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        android.widget.TextView label = new android.widget.TextView(this);
+        label.setText("Watermark text:");
+        layout.addView(label);
+
+        EditText input = new EditText(this);
+        input.setHint("CONFIDENTIAL");
+        input.setText("CONFIDENTIAL");
+        layout.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Watermark")
+                .setView(layout)
+                .setPositiveButton("Add", (d, w) -> {
+                    String text = input.getText().toString().trim();
+                    if (!text.isEmpty()) {
+                        addWatermarkWithTool(text);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void addWatermarkWithTool(String text) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_watermarked.pdf";
+
+            // Gray color with 30% opacity, 45 degree rotation
+            PdfTools.PdfResult result = PdfTools.addWatermark(
+                    filePath, getCacheDir(), outputName,
+                    text, 0.3f, 50f, 45, Color.GRAY);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Add Watermark");
+            });
+        }).start();
+    }
+
+    private void showDeletePagesDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        android.widget.TextView info = new android.widget.TextView(this);
+        info.setText("Total pages: " + totalPages + "\n\nEnter pages to delete (e.g., 1,3,5-8):");
+        layout.addView(info);
+
+        EditText input = new EditText(this);
+        input.setHint("1,2,3 or 1-5");
+        layout.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Pages")
+                .setView(layout)
+                .setPositiveButton("Delete", (d, w) -> {
+                    String pagesStr = input.getText().toString();
+                    List<Integer> pages = parsePageNumbers(pagesStr, totalPages);
+                    if (pages.isEmpty()) {
+                        Toast.makeText(this, "Invalid page numbers", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (pages.size() >= totalPages) {
+                        Toast.makeText(this, "Cannot delete all pages", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    deletePages(pages);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void deletePages(List<Integer> pages) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_modified.pdf";
+
+            PdfTools.PdfResult result = PdfTools.deletePages(filePath, getCacheDir(), outputName, pages);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Delete Pages");
+            });
+        }).start();
+    }
+
+    private void showRotatePagesDialog() {
+        String[] options = {"Rotate all pages 90° clockwise", "Rotate all pages 90° counter-clockwise",
+                "Rotate all pages 180°", "Rotate specific pages"};
+
+        new AlertDialog.Builder(this)
+                .setTitle("Rotate Pages")
+                .setItems(options, (d, which) -> {
+                    switch (which) {
+                        case 0: rotateAllPages(90); break;
+                        case 1: rotateAllPages(270); break;
+                        case 2: rotateAllPages(180); break;
+                        case 3: showRotateSpecificPagesDialog(); break;
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void rotateAllPages(int degrees) {
+        List<Integer> allPages = new ArrayList<>();
+        for (int i = 1; i <= totalPages; i++) allPages.add(i);
+        rotatePagesAction(allPages, degrees);
+    }
+
+    private void showRotateSpecificPagesDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        android.widget.TextView info = new android.widget.TextView(this);
+        info.setText("Enter pages to rotate (e.g., 1,3,5-8):");
+        layout.addView(info);
+
+        EditText input = new EditText(this);
+        input.setHint("1,2,3 or 1-5");
+        layout.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Rotate Specific Pages")
+                .setView(layout)
+                .setPositiveButton("Rotate 90°", (d, w) -> {
+                    List<Integer> pages = parsePageNumbers(input.getText().toString(), totalPages);
+                    if (!pages.isEmpty()) rotatePagesAction(pages, 90);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void rotatePagesAction(List<Integer> pages, int degrees) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+            String outputName = baseName + "_rotated.pdf";
+
+            PdfTools.PdfResult result = PdfTools.rotatePages(filePath, getCacheDir(), outputName, pages, degrees);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Rotate Pages");
+            });
+        }).start();
+    }
+
+    private void showCopyPdfDialog() {
+        EditText input = new EditText(this);
+        String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+        input.setText(baseName + "_copy");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Copy PDF")
+                .setMessage("Enter name for the copy:")
+                .setView(input)
+                .setPositiveButton("Copy", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (!name.isEmpty()) {
+                        copyPdf(name);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void copyPdf(String name) {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            PdfTools.PdfResult result = PdfTools.copyPdf(filePath, getCacheDir(), name);
+
+            runOnUiThread(() -> {
+                binding.progressBar.setVisibility(View.GONE);
+                showToolResultDialog(result, "Copy PDF");
+            });
+        }).start();
+    }
+
+    private void showPdfInfo() {
+        String info = PdfTools.getPdfInfo(filePath);
+        new AlertDialog.Builder(this)
+                .setTitle("PDF Information")
+                .setMessage(info)
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    /**
+     * Show result dialog for all PDF tools - opens file after save
+     */
+    private void showToolResultDialog(PdfTools.PdfResult result, String toolName) {
+        if (result == null) {
+            Toast.makeText(this, toolName + " failed: Unknown error", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (result.success) {
+            String fileInfo = result.fileName != null ? result.fileName : "output file";
+            String message = result.message + "\n\nFile: " + fileInfo +
+                    "\nSize: " + result.getFileSizeFormatted() +
+                    "\nLocation: Cache";
+
+            new AlertDialog.Builder(this)
+                    .setTitle(toolName + " - Success!")
+                    .setMessage(message)
+                    .setPositiveButton("Open", (d, w) -> {
+                        // Open the created PDF
+                        if (result.filePath != null && result.filePath.endsWith(".pdf")) {
+                            openCreatedPdf(result.filePath, result.fileName);
+                        } else if (result.filePath != null) {
+                            // It's a folder (for split/images)
+                            Toast.makeText(this, "Files saved to: " + result.filePath, Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .setNeutralButton("Save to Downloads", (d, w) -> {
+                        saveToDownloads(result.filePath, result.fileName);
+                    })
+                    .setNegativeButton("Close", null)
+                    .show();
+        } else {
+            new AlertDialog.Builder(this)
+                    .setTitle(toolName + " - Failed")
+                    .setMessage(result.message)
+                    .setPositiveButton("OK", null)
+                    .show();
+        }
+    }
+
+    /**
+     * Open a PDF file in this viewer
+     */
+    private void openCreatedPdf(String path, String name) {
+        try {
+            if (pdfRenderer != null) pdfRenderer.close();
+            if (fileDescriptor != null) fileDescriptor.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        filePath = path;
+        fileName = name;
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(fileName);
+        }
+
+        loadPdf();
+        Toast.makeText(this, "Opened: " + fileName, Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * Save file to Downloads folder
+     */
+    private void saveToDownloads(String sourcePath, String fileName) {
+        if (sourcePath == null) {
+            Toast.makeText(this, "No file to save", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Ensure fileName is not null
+        if (fileName == null) {
+            fileName = new File(sourcePath).getName();
+        }
+
+        final String finalFileName = fileName;
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        new Thread(() -> {
+            try {
+                File sourceFile = new File(sourcePath);
+                String savedPath;
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    android.content.ContentValues values = new android.content.ContentValues();
+                    values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, finalFileName);
+
+                    String mimeType = "application/pdf";
+                    if (finalFileName.endsWith(".jpg") || finalFileName.endsWith(".jpeg")) {
+                        mimeType = "image/jpeg";
+                    } else if (finalFileName.endsWith(".png")) {
+                        mimeType = "image/png";
+                    }
+                    values.put(android.provider.MediaStore.Downloads.MIME_TYPE, mimeType);
+                    values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                            android.os.Environment.DIRECTORY_DOWNLOADS);
+
+                    Uri uri = getContentResolver().insert(
+                            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+
+                    if (uri != null) {
+                        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                             java.io.FileInputStream in = new java.io.FileInputStream(sourceFile)) {
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            while ((bytesRead = in.read(buffer)) != -1) {
+                                out.write(buffer, 0, bytesRead);
+                            }
+                        }
+                        savedPath = "Downloads/" + finalFileName;
+                    } else {
+                        throw new Exception("Failed to create file");
+                    }
+                } else {
+                    File downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_DOWNLOADS);
+                    File destFile = new File(downloadsDir, finalFileName);
+
+                    try (java.io.FileInputStream in = new java.io.FileInputStream(sourceFile);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(destFile)) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    savedPath = destFile.getAbsolutePath();
+                }
+
+                String finalPath = savedPath;
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Saved to: " + finalPath, Toast.LENGTH_LONG).show();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
     }
 
     @Override

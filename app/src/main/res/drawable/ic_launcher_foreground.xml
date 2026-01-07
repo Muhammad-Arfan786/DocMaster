@@ -3,7 +3,27 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Document base -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,27L36,27C33.79,27 32.01,28.79 32.01,31L32,77c0,2.21 1.78,4 3.99,4L72,81c2.21,0 4,-1.79 4,-4L76,41L54,27zM66,73L42,73v-4h24v4zM66,65L42,65v-4h24v4zM52,45L52,30.5L71.5,45L52,45z"/>
+        android:pathData="M34,22h28l16,16v48c0,2.2 -1.8,4 -4,4H34c-2.2,0 -4,-1.8 -4,-4V26c0,-2.2 1.8,-4 4,-4z"/>
+
+    <!-- Document fold -->
+    <path
+        android:fillColor="#E3F2FD"
+        android:pathData="M62,22v12c0,2.2 1.8,4 4,4h12L62,22z"/>
+
+    <!-- PDF text lines -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M40,50h28v3H40zM40,58h28v3H40zM40,66h20v3H40z"/>
+
+    <!-- Gear/Tool icon (bottom right) -->
+    <path
+        android:fillColor="#FF5722"
+        android:pathData="M72,72m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,68c-2.2,0 -4,1.8 -4,4s1.8,4 4,4 4,-1.8 4,-4 -1.8,-4 -4,-4zM78.9,71l-1.2,-0.3c-0.1,-0.3 -0.2,-0.6 -0.4,-0.9l0.6,-1.1 -1.4,-1.4 -1.1,0.6c-0.3,-0.2 -0.6,-0.3 -0.9,-0.4L74,66h-2l-0.3,1.2c-0.3,0.1 -0.6,0.2 -0.9,0.4l-1.1,-0.6 -1.4,1.4 0.6,1.1c-0.2,0.3 -0.3,0.6 -0.4,0.9L66,71v2l1.2,0.3c0.1,0.3 0.2,0.6 0.4,0.9l-0.6,1.1 1.4,1.4 1.1,-0.6c0.3,0.2 0.6,0.3 0.9,0.4L71,78h2l0.3,-1.2c0.3,-0.1 0.6,-0.2 0.9,-0.4l1.1,0.6 1.4,-1.4 -0.6,-1.1c0.2,-0.3 0.3,-0.6 0.4,-0.9L79,73v-2H78.9z"/>
 </vector>

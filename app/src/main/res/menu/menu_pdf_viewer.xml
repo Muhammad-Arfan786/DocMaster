@@ -3,13 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_search"
-        android:icon="@drawable/ic_search"
-        android:title="@string/search"
-        app:iconTint="@android:color/white"
-        app:showAsAction="ifRoom" />
-
-    <item
         android:id="@+id/action_draw"
         android:icon="@drawable/ic_pen"
         android:title="Draw/Annotate"
@@ -23,14 +16,64 @@
         app:iconTint="@android:color/white"
         app:showAsAction="ifRoom" />
 
+    <!-- PDF Tools Submenu -->
     <item
-        android:id="@+id/action_add_note"
-        android:title="Add Note"
+        android:id="@+id/action_pdf_tools"
+        android:title="PDF Tools"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/action_edit_copy"
+                android:title="Edit Copy (Like Word)" />
+            <item
+                android:id="@+id/action_merge_pdf"
+                android:title="Merge PDFs" />
+            <item
+                android:id="@+id/action_split_pdf"
+                android:title="Split PDF" />
+            <item
+                android:id="@+id/action_compress_pdf"
+                android:title="Compress PDF" />
+            <item
+                android:id="@+id/action_add_page_numbers"
+                android:title="Add Page Numbers" />
+            <item
+                android:id="@+id/action_pdf_to_images"
+                android:title="PDF to Images (JPG/PNG)" />
+            <item
+                android:id="@+id/action_add_watermark"
+                android:title="Add Watermark" />
+            <item
+                android:id="@+id/action_delete_pages"
+                android:title="Delete Pages" />
+            <item
+                android:id="@+id/action_rotate_pages"
+                android:title="Rotate Pages" />
+            <item
+                android:id="@+id/action_copy_pdf"
+                android:title="Copy PDF" />
+            <item
+                android:id="@+id/action_convert_to_word"
+                android:title="PDF to Word (DOCX)" />
+            <item
+                android:id="@+id/action_pdf_info"
+                android:title="PDF Info" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_visual_edit"
+        android:title="Visual Edit (Tap Text)"
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_convert_to_word"
-        android:title="Convert to Word"
+        android:id="@+id/action_edit_text"
+        android:title="Edit Text (Area)"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_add_note"
+        android:title="Add Note"
         app:showAsAction="never" />
 
     <item

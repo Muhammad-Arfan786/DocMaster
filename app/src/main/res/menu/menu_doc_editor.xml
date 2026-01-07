@@ -19,13 +19,6 @@
         android:visible="false" />
 
     <item
-        android:id="@+id/action_search"
-        android:icon="@drawable/ic_search"
-        android:title="@string/search"
-        app:iconTint="@android:color/white"
-        app:showAsAction="ifRoom" />
-
-    <item
         android:id="@+id/action_save"
         android:icon="@drawable/ic_save"
         android:title="Save"
@@ -35,7 +28,17 @@
 
     <item
         android:id="@+id/action_save_as"
-        android:title="Save As..."
+        android:title="Save As Word..."
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_save_as_pdf"
+        android:title="Save As New PDF"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_save_to_original"
+        android:title="Save to Original PDF"
         app:showAsAction="never" />
 
     <item

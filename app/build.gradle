@@ -7,7 +7,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.docreader"
+        applicationId "com.docmaster.pdftools"
         minSdk 26
         targetSdk 34
         versionCode 1
@@ -16,10 +16,25 @@ android {
         multiDexEnabled true
     }
 
-    buildTypes {
+    signingConfigs {
         release {
-            minifyEnabled false
+            storeFile file('docmaster-release.keystore')
+            storePassword 'docmaster123'
+            keyAlias 'docmaster'
+            keyPassword 'docmaster123'
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 

@@ -22,40 +22,6 @@
             app:titleTextColor="@android:color/white"
             app:menu="@menu/menu_pdf_viewer" />
 
-        <!-- Search Bar -->
-        <LinearLayout
-            android:id="@+id/searchBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="8dp"
-            android:background="@color/primary_dark"
-            android:visibility="gone">
-
-            <EditText
-                android:id="@+id/etSearch"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_search_field"
-                android:hint="@string/search_hint"
-                android:textColorHint="@android:color/darker_gray"
-                android:textColor="@android:color/black"
-                android:paddingHorizontal="12dp"
-                android:imeOptions="actionSearch"
-                android:inputType="text" />
-
-            <ImageButton
-                android:id="@+id/btnCloseSearch"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_close"
-                app:tint="@android:color/white" />
-
-        </LinearLayout>
-
         <!-- Edit Toolbar -->
         <HorizontalScrollView
             android:id="@+id/editToolbar"

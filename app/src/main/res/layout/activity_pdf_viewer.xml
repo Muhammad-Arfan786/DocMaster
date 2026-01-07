@@ -170,20 +170,29 @@
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <androidx.core.widget.NestedScrollView
-            android:id="@+id/scrollView"
+        <HorizontalScrollView
+            android:id="@+id/horizontalScrollView"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:fillViewport="true">
 
-            <LinearLayout
-                android:id="@+id/pagesContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:padding="8dp" />
+            <androidx.core.widget.NestedScrollView
+                android:id="@+id/scrollView"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
 
-        </androidx.core.widget.NestedScrollView>
+                <LinearLayout
+                    android:id="@+id/pagesContainer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:padding="8dp" />
+
+            </androidx.core.widget.NestedScrollView>
+
+        </HorizontalScrollView>
 
         <!-- Drawing Overlay (for edit mode) -->
         <com.docreader.views.DrawingView

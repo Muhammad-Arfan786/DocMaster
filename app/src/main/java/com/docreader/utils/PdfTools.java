@@ -182,6 +182,11 @@ public class PdfTools {
      * Compress PDF by reducing image quality and optimizing
      */
     public static PdfResult compressPdf(Context context, String pdfPath, File outputDir, String outputName) {
+        PdfRenderer renderer = null;
+        ParcelFileDescriptor fd = null;
+        PdfDocument originalDoc = null;
+        Document document = null;
+
         try {
             if (!outputDir.exists()) outputDir.mkdirs();
 
@@ -189,19 +194,27 @@ public class PdfTools {
             File outputFile = new File(outputDir, fileName);
 
             File inputFile = new File(pdfPath);
+            if (!inputFile.exists()) {
+                return new PdfResult(false, null, null, "Source file not found");
+            }
+
             long originalSize = inputFile.length();
 
             // Render pages as compressed images and create new PDF
-            ParcelFileDescriptor fd = ParcelFileDescriptor.open(inputFile, ParcelFileDescriptor.MODE_READ_ONLY);
-            PdfRenderer renderer = new PdfRenderer(fd);
+            fd = ParcelFileDescriptor.open(inputFile, ParcelFileDescriptor.MODE_READ_ONLY);
+            renderer = new PdfRenderer(fd);
             int pageCount = renderer.getPageCount();
 
+            if (pageCount == 0) {
+                return new PdfResult(false, null, null, "PDF has no pages");
+            }
+
             // Get original page sizes
-            PdfDocument originalDoc = new PdfDocument(new PdfReader(pdfPath));
+            originalDoc = new PdfDocument(new PdfReader(pdfPath));
 
             PdfWriter writer = new PdfWriter(outputFile);
             PdfDocument compressedDoc = new PdfDocument(writer);
-            Document document = new Document(compressedDoc);
+            document = new Document(compressedDoc);
 
             for (int i = 0; i < pageCount; i++) {
                 PdfPage origPage = originalDoc.getPage(i + 1);
@@ -214,16 +227,25 @@ public class PdfTools {
                 int bitmapWidth = (int) (pageWidth * scale);
                 int bitmapHeight = (int) (pageHeight * scale);
 
+                // Limit bitmap size to prevent memory issues
+                int maxSize = 2048;
+                if (bitmapWidth > maxSize || bitmapHeight > maxSize) {
+                    float reduceScale = Math.min((float) maxSize / bitmapWidth, (float) maxSize / bitmapHeight);
+                    bitmapWidth = (int) (bitmapWidth * reduceScale);
+                    bitmapHeight = (int) (bitmapHeight * reduceScale);
+                }
+
                 Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.RGB_565);
                 bitmap.eraseColor(Color.WHITE);
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
                 page.close();
 
-                // Compress to JPEG
+                // Compress to JPEG with quality 60 for better compression
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos);
                 byte[] imageBytes = baos.toByteArray();
                 bitmap.recycle();
+                baos.close();
 
                 // Add to new PDF
                 ImageData imageData = ImageDataFactory.create(imageBytes);
@@ -238,19 +260,41 @@ public class PdfTools {
             }
 
             renderer.close();
+            renderer = null;
             fd.close();
+            fd = null;
             originalDoc.close();
+            originalDoc = null;
             document.close();
+            document = null;
 
             long newSize = outputFile.length();
             float reduction = (1 - (float) newSize / originalSize) * 100;
 
-            return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
-                    String.format("Compressed: %.1f KB → %.1f KB (%.0f%% smaller)",
-                            originalSize / 1024.0, newSize / 1024.0, reduction));
+            String resultMessage;
+            if (reduction > 0) {
+                resultMessage = String.format("Compressed: %.1f KB → %.1f KB (%.0f%% smaller)",
+                        originalSize / 1024.0, newSize / 1024.0, reduction);
+            } else {
+                resultMessage = String.format("Processed: %.1f KB → %.1f KB (file was already optimized)",
+                        originalSize / 1024.0, newSize / 1024.0);
+            }
 
+            return new PdfResult(true, outputFile.getAbsolutePath(), fileName, resultMessage);
+
+        } catch (OutOfMemoryError e) {
+            return new PdfResult(false, null, null, "Out of memory - PDF too large to compress");
         } catch (Exception e) {
+            e.printStackTrace();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            // Clean up resources
+            try {
+                if (renderer != null) renderer.close();
+                if (fd != null) fd.close();
+                if (originalDoc != null) originalDoc.close();
+                if (document != null) document.close();
+            } catch (Exception ignored) {}
         }
     }
 

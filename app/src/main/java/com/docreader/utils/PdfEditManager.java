@@ -45,9 +45,35 @@ public class PdfEditManager {
     private Map<Integer, List<TextAnnotation>> textAnnotations = new HashMap<>();
     private Map<Integer, Bitmap> drawingOverlays = new HashMap<>();
 
+    // Undo stack to track all edit operations
+    private List<EditAction> undoStack = new ArrayList<>();
+
     public PdfEditManager(Context context, String pdfPath) {
         this.context = context;
         this.originalPdfPath = pdfPath;
+    }
+
+    /**
+     * Edit action types for undo functionality
+     */
+    public enum ActionType {
+        TEXT_ANNOTATION,
+        DRAWING_OVERLAY
+    }
+
+    /**
+     * Represents an edit action that can be undone
+     */
+    public static class EditAction {
+        public ActionType type;
+        public int pageIndex;
+        public Object data; // TextAnnotation or Bitmap reference
+
+        public EditAction(ActionType type, int pageIndex, Object data) {
+            this.type = type;
+            this.pageIndex = pageIndex;
+            this.data = data;
+        }
     }
 
     /**
@@ -60,6 +86,9 @@ public class PdfEditManager {
             textAnnotations.put(pageIndex, new ArrayList<>());
         }
         textAnnotations.get(pageIndex).add(annotation);
+
+        // Track for undo
+        undoStack.add(new EditAction(ActionType.TEXT_ANNOTATION, pageIndex, annotation));
     }
 
     /**
@@ -67,8 +96,61 @@ public class PdfEditManager {
      */
     public void setDrawingOverlay(int pageIndex, Bitmap bitmap) {
         if (bitmap != null && !bitmap.isRecycled()) {
-            drawingOverlays.put(pageIndex, bitmap.copy(Bitmap.Config.ARGB_8888, false));
+            Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
+            drawingOverlays.put(pageIndex, copy);
+
+            // Track for undo
+            undoStack.add(new EditAction(ActionType.DRAWING_OVERLAY, pageIndex, copy));
         }
+    }
+
+    /**
+     * Undo the last edit action
+     * @return true if an action was undone, false if nothing to undo
+     */
+    public boolean undo() {
+        if (undoStack.isEmpty()) {
+            return false;
+        }
+
+        EditAction lastAction = undoStack.remove(undoStack.size() - 1);
+
+        switch (lastAction.type) {
+            case TEXT_ANNOTATION:
+                // Remove the text annotation
+                if (textAnnotations.containsKey(lastAction.pageIndex)) {
+                    List<TextAnnotation> annotations = textAnnotations.get(lastAction.pageIndex);
+                    annotations.remove(lastAction.data);
+                    if (annotations.isEmpty()) {
+                        textAnnotations.remove(lastAction.pageIndex);
+                    }
+                }
+                break;
+
+            case DRAWING_OVERLAY:
+                // Remove the drawing overlay
+                Bitmap removedBitmap = drawingOverlays.remove(lastAction.pageIndex);
+                if (removedBitmap != null && !removedBitmap.isRecycled()) {
+                    removedBitmap.recycle();
+                }
+                break;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if there are any actions to undo
+     */
+    public boolean canUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    /**
+     * Clear the undo stack
+     */
+    public void clearUndoStack() {
+        undoStack.clear();
     }
 
     /**

@@ -393,7 +393,14 @@ public class PdfViewerActivity extends AppCompatActivity {
         page.close();
 
         if (pageIndex < pageViews.size()) {
-            pageViews.get(pageIndex).setImageBitmap(bitmap);
+            ImageView imageView = pageViews.get(pageIndex);
+            imageView.setImageBitmap(bitmap);
+
+            // Update ImageView layout to match zoomed size
+            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) imageView.getLayoutParams();
+            params.width = width;
+            params.height = height;
+            imageView.setLayoutParams(params);
         }
     }
 
@@ -1052,6 +1059,147 @@ public class PdfViewerActivity extends AppCompatActivity {
             return;
         }
         performSave();
+    }
+
+    /**
+     * Show save options dialog - allows saving current PDF with any edits/annotations
+     */
+    private void showSaveOptionsDialog() {
+        String[] options = {
+            "Save as New Copy",
+            "Save to Original (Overwrite)"
+        };
+
+        new AlertDialog.Builder(this)
+            .setTitle("Save PDF")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) {
+                    // Save as new copy
+                    saveAsNewCopy();
+                } else {
+                    // Overwrite original
+                    confirmOverwriteOriginal();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    /**
+     * Save PDF as a new copy to Downloads folder
+     */
+    private void saveAsNewCopy() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        // Capture any current drawings
+        if (binding.drawingView.hasDrawings()) {
+            Bitmap drawingBitmap = binding.drawingView.getDrawingBitmap();
+            if (drawingBitmap != null) {
+                pdfEditManager.setDrawingOverlay(currentPage, drawingBitmap);
+            }
+        }
+
+        new Thread(() -> {
+            try {
+                String savedPath = pdfEditManager.saveEditedPdf();
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    showSavedFileDialog(savedPath, "PDF saved to:");
+                });
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Confirm before overwriting the original file
+     */
+    private void confirmOverwriteOriginal() {
+        new AlertDialog.Builder(this)
+            .setTitle("Overwrite Original?")
+            .setMessage("This will replace the original PDF file. This action cannot be undone.\n\nAre you sure?")
+            .setPositiveButton("Overwrite", (dialog, which) -> saveToOriginal())
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    /**
+     * Save edits directly to the original PDF file
+     */
+    private void saveToOriginal() {
+        binding.progressBar.setVisibility(View.VISIBLE);
+
+        // Capture any current drawings
+        if (binding.drawingView.hasDrawings()) {
+            Bitmap drawingBitmap = binding.drawingView.getDrawingBitmap();
+            if (drawingBitmap != null) {
+                pdfEditManager.setDrawingOverlay(currentPage, drawingBitmap);
+            }
+        }
+
+        new Thread(() -> {
+            try {
+                // First save to temp location
+                String tempPath = pdfEditManager.saveEditedPdf();
+                File tempFile = new File(tempPath);
+                File originalFile = new File(filePath);
+
+                // Copy temp file to original location
+                java.io.FileInputStream fis = new java.io.FileInputStream(tempFile);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(originalFile);
+                byte[] buffer = new byte[8192];
+                int length;
+                while ((length = fis.read(buffer)) > 0) {
+                    fos.write(buffer, 0, length);
+                }
+                fis.close();
+                fos.close();
+
+                // Delete temp file
+                tempFile.delete();
+
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "PDF saved to original file!", Toast.LENGTH_SHORT).show();
+
+                    // Reload the PDF to show saved changes
+                    reloadPdf();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Perform undo operation - undoes the last edit action
+     */
+    private void performUndo() {
+        // First try to undo drawing view strokes
+        if (binding.drawingView.hasDrawings()) {
+            binding.drawingView.undo();
+            Toast.makeText(this, "Undo: Drawing removed", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Then try to undo PDF edit manager actions
+        if (pdfEditManager.canUndo()) {
+            pdfEditManager.undo();
+            Toast.makeText(this, "Undo: Edit removed", Toast.LENGTH_SHORT).show();
+            // Refresh the page display
+            renderPage(currentPage);
+            return;
+        }
+
+        Toast.makeText(this, "Nothing to undo", Toast.LENGTH_SHORT).show();
     }
 
     private void performSave() {
@@ -1907,6 +2055,10 @@ public class PdfViewerActivity extends AppCompatActivity {
             exitEditTextMode();
         }
 
+        // Clear any previous visual edit state
+        isVisualEditMode = false;
+        visualTextBlocks.clear();
+
         binding.progressBar.setVisibility(View.VISIBLE);
 
         // Extract text blocks for current page in background
@@ -2166,6 +2318,9 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void exitVisualEditMode() {
         isVisualEditMode = false;
         visualTextBlocks.clear();
+
+        // Reset the pdfEditManager for fresh start next time
+        pdfEditManager = new PdfEditManager(this, filePath);
 
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle(fileName);
@@ -2463,7 +2618,13 @@ public class PdfViewerActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.action_edit) {
+        if (id == R.id.action_undo) {
+            performUndo();
+            return true;
+        } else if (id == R.id.action_save) {
+            showSaveOptionsDialog();
+            return true;
+        } else if (id == R.id.action_edit) {
             showPdfEditorBottomSheet();
             return true;
         } else if (id == R.id.action_draw) {

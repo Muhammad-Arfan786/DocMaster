@@ -282,7 +282,7 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
      * Setup click listeners for all PDF tool icons
      */
     private void setupToolClickListeners() {
-        // Row 1: Merge, Split, Compress, To Word
+        // Row 1: Merge, Split, To Word
         binding.toolMergePdf.setOnClickListener(v -> {
             pendingToolType = "merge";
             Toast.makeText(this, "Select PDF files to merge", Toast.LENGTH_SHORT).show();
@@ -292,18 +292,6 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
         binding.toolSplitPdf.setOnClickListener(v -> {
             pendingToolType = "split";
             Toast.makeText(this, "Select a PDF file to split", Toast.LENGTH_SHORT).show();
-            pdfToolLauncher.launch(new String[]{"application/pdf"});
-        });
-
-        binding.toolCompressPdf.setOnClickListener(v -> {
-            pendingToolType = "compress";
-            Toast.makeText(this, "Select a PDF file to compress", Toast.LENGTH_SHORT).show();
-            pdfToolLauncher.launch(new String[]{"application/pdf"});
-        });
-
-        binding.toolPdfToWord.setOnClickListener(v -> {
-            pendingToolType = "toword";
-            Toast.makeText(this, "Select a PDF file to convert to Word", Toast.LENGTH_SHORT).show();
             pdfToolLauncher.launch(new String[]{"application/pdf"});
         });
 

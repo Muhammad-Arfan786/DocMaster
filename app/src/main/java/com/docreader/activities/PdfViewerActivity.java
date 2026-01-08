@@ -40,7 +40,6 @@ import com.docreader.models.RecentFile;
 import com.docreader.utils.PdfEditManager;
 import com.docreader.utils.PdfPageManager;
 import com.docreader.utils.PdfTextEditor;
-import com.docreader.utils.PdfToWordConverter;
 import com.docreader.utils.PdfAnnotationEditor;
 import com.docreader.utils.VisualPdfEditor;
 import com.docreader.utils.PdfImageCopyEditor;
@@ -154,12 +153,6 @@ public class PdfViewerActivity extends AppCompatActivity {
                     break;
                 case "split":
                     showSplitPdfDialog();
-                    break;
-                case "compress":
-                    showCompressPdfDialog();
-                    break;
-                case "toword":
-                    convertToWord();
                     break;
                 case "toimage":
                     showPdfToImagesDialog();
@@ -449,11 +442,6 @@ public class PdfViewerActivity extends AppCompatActivity {
             splitPdfIntoPages();
         });
 
-        sheetBinding.btnCompressPdf.setOnClickListener(v -> {
-            bottomSheet.dismiss();
-            compressPdf();
-        });
-
         // Content operations
         sheetBinding.btnAddImage.setOnClickListener(v -> {
             bottomSheet.dismiss();
@@ -738,44 +726,6 @@ public class PdfViewerActivity extends AppCompatActivity {
                             .setTitle("PDF Split")
                             .setMessage("PDF split into " + paths.size() + " files.\n\nSaved to Documents folder.")
                             .setPositiveButton("OK", null)
-                            .show();
-                });
-
-            } catch (IOException e) {
-                runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-            }
-        }).start();
-    }
-
-    private void compressPdf() {
-        binding.progressBar.setVisibility(View.VISIBLE);
-
-        new Thread(() -> {
-            try {
-                String newPath = pdfPageManager.compressPdf();
-
-                File originalFile = new File(filePath);
-                File compressedFile = new File(newPath);
-
-                long originalSize = originalFile.length();
-                long compressedSize = compressedFile.length();
-
-                runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-                    String message = String.format("Original: %.2f KB\nCompressed: %.2f KB\n\nSaved to:\n%s",
-                            originalSize / 1024.0, compressedSize / 1024.0, newPath);
-
-                    new AlertDialog.Builder(this)
-                            .setTitle("PDF Compressed")
-                            .setMessage(message)
-                            .setPositiveButton("OK", null)
-                            .setNeutralButton("Use This", (d, w) -> {
-                                filePath = newPath;
-                                reloadPdf();
-                            })
                             .show();
                 });
 
@@ -1146,11 +1096,23 @@ public class PdfViewerActivity extends AppCompatActivity {
      */
     private String saveFileToDownloads(File sourceFile, String fileName) {
         try {
+            // Determine MIME type based on file extension
+            String mimeType = "application/pdf";
+            if (fileName.toLowerCase().endsWith(".docx")) {
+                mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            } else if (fileName.toLowerCase().endsWith(".doc")) {
+                mimeType = "application/msword";
+            } else if (fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".jpeg")) {
+                mimeType = "image/jpeg";
+            } else if (fileName.toLowerCase().endsWith(".png")) {
+                mimeType = "image/png";
+            }
+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 // Android 10+ use MediaStore
                 android.content.ContentValues values = new android.content.ContentValues();
                 values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName);
-                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf");
+                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, mimeType);
                 values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
 
                 Uri uri = getContentResolver().insert(
@@ -1196,7 +1158,15 @@ public class PdfViewerActivity extends AppCompatActivity {
      */
     private void addToRecentFiles(String path, String name) {
         PreferencesManager prefsManager = new PreferencesManager(this);
-        RecentFile recentFile = new RecentFile(name, path, "pdf", System.currentTimeMillis());
+        // Detect file type from extension
+        String fileType = "pdf";
+        String lowerName = name.toLowerCase();
+        if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+            fileType = "doc";
+        } else if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png")) {
+            fileType = "image";
+        }
+        RecentFile recentFile = new RecentFile(name, path, fileType, System.currentTimeMillis());
         prefsManager.addRecentFile(recentFile);
     }
 
@@ -1817,53 +1787,6 @@ public class PdfViewerActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
-        }).start();
-    }
-
-    private void convertToWord() {
-        binding.progressBar.setVisibility(View.VISIBLE);
-        Toast.makeText(this, "Converting PDF to Word...", Toast.LENGTH_SHORT).show();
-
-        new Thread(() -> {
-            try {
-                // Convert PDF to Word document
-                String docxPath = PdfToWordConverter.convertToDocx(filePath, getCacheDir());
-                File docxFile = new File(docxPath);
-
-                // Get page count for info
-                int pageCount = PdfTools.getPageCount(filePath);
-
-                runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-
-                    new AlertDialog.Builder(this)
-                            .setTitle("PDF Converted to Word!")
-                            .setMessage("Successfully converted " + pageCount + " page(s).\n\n" +
-                                    "File: " + docxFile.getName() + "\n\n" +
-                                    "You can now:\n" +
-                                    "• Edit the text freely\n" +
-                                    "• Tap 'Save PDF' when done to save back as PDF")
-                            .setPositiveButton("Open & Edit Now", (dialog, which) -> {
-                                // Open DocViewerActivity for editing
-                                Intent intent = new Intent(this, DocViewerActivity.class);
-                                intent.putExtra("file_path", docxPath);
-                                intent.putExtra("file_name", docxFile.getName());
-                                intent.putExtra("original_pdf_path", filePath);
-                                intent.putExtra("original_pdf_name", fileName);
-                                startActivity(intent);
-                            })
-                            .setNegativeButton("Cancel", null)
-                            .setCancelable(false)
-                            .show();
-                });
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-                    Toast.makeText(this, "Error converting: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
         }).start();
@@ -2749,17 +2672,11 @@ public class PdfViewerActivity extends AppCompatActivity {
         } else if (id == R.id.action_edit_copy) {
             editAsCopy();
             return true;
-        } else if (id == R.id.action_convert_to_word) {
-            convertToWord();
-            return true;
         } else if (id == R.id.action_merge_pdf) {
             showMergePdfDialog();
             return true;
         } else if (id == R.id.action_split_pdf) {
             showSplitPdfDialog();
-            return true;
-        } else if (id == R.id.action_compress_pdf) {
-            showCompressPdfDialog();
             return true;
         } else if (id == R.id.action_add_page_numbers) {
             showAddPageNumbersDialog();
@@ -2904,42 +2821,35 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_extracted.pdf";
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String outputName = baseName + "_extracted_" + timestamp + ".pdf";
 
             PdfTools.PdfResult result = PdfTools.extractPages(filePath, getCacheDir(), outputName, pages);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Extract Pages");
-            });
-        }).start();
-    }
+            if (result.success && result.filePath != null) {
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
 
-    private void showCompressPdfDialog() {
-        File inputFile = new File(filePath);
-        String sizeInfo = String.format("Current size: %.2f MB", inputFile.length() / (1024.0 * 1024.0));
-
-        new AlertDialog.Builder(this)
-                .setTitle("Compress PDF")
-                .setMessage(sizeInfo + "\n\nThis will create a compressed copy of the PDF by converting pages to optimized images.")
-                .setPositiveButton("Compress", (d, w) -> compressPdfWithTool())
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private void compressPdfWithTool() {
-        binding.progressBar.setVisibility(View.VISIBLE);
-
-        new Thread(() -> {
-            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_compressed.pdf";
-
-            PdfTools.PdfResult result = PdfTools.compressPdf(this, filePath, getCacheDir(), outputName);
-
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Compress PDF");
-            });
+                if (savedPath != null) {
+                    addToRecentFiles(savedPath, outputName);
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "Pages extracted! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving PDF", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -2961,14 +2871,35 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_numbered.pdf";
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String outputName = baseName + "_numbered_" + timestamp + ".pdf";
 
             PdfTools.PdfResult result = PdfTools.addPageNumbers(filePath, getCacheDir(), outputName, position, 1);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Add Page Numbers");
-            });
+            if (result.success && result.filePath != null) {
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
+
+                if (savedPath != null) {
+                    addToRecentFiles(savedPath, outputName);
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "Page numbers added! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving PDF", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -2988,17 +2919,55 @@ public class PdfViewerActivity extends AppCompatActivity {
 
     private void pdfToImages(String format) {
         binding.progressBar.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "Converting to images...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
-            String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            File outputDir = new File(getCacheDir(), baseName + "_images");
+            try {
+                String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
+                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+                File outputDir = new File(getCacheDir(), baseName + "_images_" + timestamp);
 
-            PdfTools.PdfResult result = PdfTools.pdfToImages(this, filePath, outputDir, format, 150);
+                PdfTools.PdfResult result = PdfTools.pdfToImages(this, filePath, outputDir, format, 150);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "PDF to Images");
-            });
+                if (result.success && outputDir.exists()) {
+                    // Save all images to Downloads
+                    File[] imageFiles = outputDir.listFiles();
+                    int savedCount = 0;
+
+                    if (imageFiles != null) {
+                        for (File imageFile : imageFiles) {
+                            String savedPath = saveFileToDownloads(imageFile, imageFile.getName());
+                            if (savedPath != null) {
+                                savedCount++;
+                            }
+                            imageFile.delete();
+                        }
+                    }
+
+                    // Clean up cache folder
+                    outputDir.delete();
+
+                    final int finalSavedCount = savedCount;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        new AlertDialog.Builder(this)
+                                .setTitle("PDF to Images - Success!")
+                                .setMessage("Converted " + finalSavedCount + " page(s) to " + format.toUpperCase() + " images.\n\nSaved to: Downloads folder")
+                                .setPositiveButton("OK", null)
+                                .show();
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Conversion failed: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                    });
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -3034,17 +3003,41 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_watermarked.pdf";
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String outputName = baseName + "_watermarked_" + timestamp + ".pdf";
 
-            // Gray color with 30% opacity, 45 degree rotation
+            // Gray color with 30% opacity, 45 degree rotation, larger font
             PdfTools.PdfResult result = PdfTools.addWatermark(
                     filePath, getCacheDir(), outputName,
-                    text, 0.3f, 50f, 45, Color.GRAY);
+                    text, 0.4f, 72f, 45, Color.GRAY);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Add Watermark");
-            });
+            if (result.success && result.filePath != null) {
+                // Save to Downloads
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
+
+                if (savedPath != null) {
+                    // Add to recent files
+                    addToRecentFiles(savedPath, outputName);
+
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "Watermark added! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving watermarked PDF", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -3086,14 +3079,35 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_modified.pdf";
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String outputName = baseName + "_modified_" + timestamp + ".pdf";
 
             PdfTools.PdfResult result = PdfTools.deletePages(filePath, getCacheDir(), outputName, pages);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Delete Pages");
-            });
+            if (result.success && result.filePath != null) {
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
+
+                if (savedPath != null) {
+                    addToRecentFiles(savedPath, outputName);
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "Pages deleted! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving PDF", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -3150,14 +3164,38 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
-            String outputName = baseName + "_rotated.pdf";
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String outputName = baseName + "_rotated_" + timestamp + ".pdf";
 
             PdfTools.PdfResult result = PdfTools.rotatePages(filePath, getCacheDir(), outputName, pages, degrees);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Rotate Pages");
-            });
+            if (result.success && result.filePath != null) {
+                // Save to Downloads
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
+
+                if (savedPath != null) {
+                    // Add to recent files
+                    addToRecentFiles(savedPath, outputName);
+
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "Pages rotated! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving rotated PDF", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 
@@ -3184,12 +3222,33 @@ public class PdfViewerActivity extends AppCompatActivity {
         binding.progressBar.setVisibility(View.VISIBLE);
 
         new Thread(() -> {
-            PdfTools.PdfResult result = PdfTools.copyPdf(filePath, getCacheDir(), name);
+            String outputName = name.endsWith(".pdf") ? name : name + ".pdf";
+            PdfTools.PdfResult result = PdfTools.copyPdf(filePath, getCacheDir(), outputName);
 
-            runOnUiThread(() -> {
-                binding.progressBar.setVisibility(View.GONE);
-                showToolResultDialog(result, "Copy PDF");
-            });
+            if (result.success && result.filePath != null) {
+                File tempFile = new File(result.filePath);
+                String savedPath = saveFileToDownloads(tempFile, outputName);
+                tempFile.delete();
+
+                if (savedPath != null) {
+                    addToRecentFiles(savedPath, outputName);
+                    final String finalPath = savedPath;
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showSavedFileDialogWithOpen(finalPath, outputName, "PDF copied! Saved to Downloads:");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        binding.progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Error saving PDF copy", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } else {
+                runOnUiThread(() -> {
+                    binding.progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
+                });
+            }
         }).start();
     }
 

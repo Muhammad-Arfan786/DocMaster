@@ -4,12 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="@color/background_light"
     tools:context=".activities.MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:fitsSystemWindows="true"
         android:elevation="0dp"
         app:elevation="0dp">
 
@@ -18,6 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/primary"
+            android:fitsSystemWindows="true"
             app:title="@string/app_name"
             app:titleTextColor="@android:color/white"
             app:menu="@menu/menu_main" />
@@ -40,8 +43,8 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="12dp"
-                app:cardCornerRadius="16dp"
+                android:layout_margin="@dimen/card_margin"
+                app:cardCornerRadius="@dimen/card_corner_radius"
                 app:cardElevation="2dp"
                 app:strokeWidth="0dp">
 
@@ -49,7 +52,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="@dimen/card_padding">
 
                     <!-- Section Header -->
                     <LinearLayout
@@ -57,31 +60,32 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="16dp">
+                        android:paddingHorizontal="@dimen/spacing_small"
+                        android:layout_marginBottom="@dimen/section_header_margin">
 
                         <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
+                            android:layout_width="@dimen/section_header_icon"
+                            android:layout_height="@dimen/section_header_icon"
                             android:src="@drawable/ic_pdf"
                             app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="@dimen/spacing_medium"
                             android:text="PDF Tools"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/section_header_text"
                             android:textStyle="bold"
                             android:textColor="?android:textColorPrimary" />
 
                     </LinearLayout>
 
-                    <!-- Tools Grid - Row 1 -->
+                    <!-- Tools Grid - Row 1: Merge, Split, To Image, Rotate -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
+                        android:layout_marginBottom="@dimen/spacing_small">
 
                         <!-- Merge -->
                         <LinearLayout
@@ -91,20 +95,20 @@
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
                                 android:backgroundTint="@color/tool_merge_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
                                     android:src="@drawable/ic_merge"
                                     app:tint="@color/tool_merge" />
@@ -113,9 +117,9 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
                                 android:text="Merge"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
@@ -128,20 +132,20 @@
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
                                 android:backgroundTint="@color/tool_split_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
                                     android:src="@drawable/ic_split"
                                     app:tint="@color/tool_split" />
@@ -150,95 +154,12 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
                                 android:text="Split"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
-
-                        <!-- Compress -->
-                        <LinearLayout
-                            android:id="@+id/toolCompressPdf"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_compress_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_compress"
-                                    app:tint="@color/tool_compress" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Compress"
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                        <!-- To Word -->
-                        <LinearLayout
-                            android:id="@+id/toolPdfToWord"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_word_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_word"
-                                    app:tint="@color/tool_word" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="To Word"
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                    <!-- Tools Grid - Row 2 -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
 
                         <!-- To Image -->
                         <LinearLayout
@@ -248,20 +169,20 @@
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
                                 android:backgroundTint="@color/tool_image_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
                                     android:src="@drawable/ic_image"
                                     app:tint="@color/tool_image" />
@@ -270,131 +191,12 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
                                 android:text="To Image"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
-
-                        <!-- Watermark -->
-                        <LinearLayout
-                            android:id="@+id/toolWatermark"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_watermark_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_watermark"
-                                    app:tint="@color/tool_watermark" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Watermark"
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                        <!-- Page Numbers -->
-                        <LinearLayout
-                            android:id="@+id/toolPageNumbers"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_pagenumbers_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_numbers"
-                                    app:tint="@color/tool_pagenumbers" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Page No."
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                        <!-- Delete Pages -->
-                        <LinearLayout
-                            android:id="@+id/toolDeletePages"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_delete_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_delete"
-                                    app:tint="@color/tool_delete" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Delete"
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                    <!-- Tools Grid - Row 3 -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
 
                         <!-- Rotate -->
                         <LinearLayout
@@ -404,20 +206,20 @@
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
                                 android:backgroundTint="@color/tool_rotate_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
                                     android:src="@drawable/ic_rotate"
                                     app:tint="@color/tool_rotate" />
@@ -426,83 +228,55 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
                                 android:text="Rotate"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
 
-                        <!-- Copy -->
+                    </LinearLayout>
+
+                    <!-- Tools Grid - Row 2: Delete, Extract, Edit, Watermark -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="@dimen/spacing_small">
+
+                        <!-- Delete Pages -->
                         <LinearLayout
-                            android:id="@+id/toolCopyPdf"
+                            android:id="@+id/toolDeletePages"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_copy_bg">
+                                android:backgroundTint="@color/tool_delete_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
-                                    android:src="@drawable/ic_copy"
-                                    app:tint="@color/tool_copy" />
+                                    android:src="@drawable/ic_delete"
+                                    app:tint="@color/tool_delete" />
                             </FrameLayout>
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Copy"
-                                android:textSize="12sp"
-                                android:textColor="?android:textColorPrimary"
-                                android:maxLines="1" />
-                        </LinearLayout>
-
-                        <!-- Edit -->
-                        <LinearLayout
-                            android:id="@+id/toolEditPdf"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:padding="8dp"
-                            android:background="@drawable/bg_tool_item"
-                            android:clickable="true"
-                            android:focusable="true">
-
-                            <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:background="@drawable/bg_tool_icon_circle"
-                                android:backgroundTint="@color/tool_edit_bg">
-
-                                <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
-                                    android:layout_gravity="center"
-                                    android:src="@drawable/ic_edit"
-                                    app:tint="@color/tool_edit" />
-                            </FrameLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="Edit"
-                                android:textSize="12sp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
+                                android:text="Delete"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
@@ -515,20 +289,20 @@
                             android:layout_weight="1"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
+                            android:padding="@dimen/tool_padding"
                             android:background="@drawable/bg_tool_item"
                             android:clickable="true"
                             android:focusable="true">
 
                             <FrameLayout
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
                                 android:background="@drawable/bg_tool_icon_circle"
                                 android:backgroundTint="@color/tool_extract_bg">
 
                                 <ImageView
-                                    android:layout_width="26dp"
-                                    android:layout_height="26dp"
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
                                     android:layout_gravity="center"
                                     android:src="@drawable/ic_extract"
                                     app:tint="@color/tool_extract" />
@@ -537,12 +311,179 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
                                 android:text="Extract"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/tool_text_size"
                                 android:textColor="?android:textColorPrimary"
                                 android:maxLines="1" />
                         </LinearLayout>
+
+                        <!-- Edit -->
+                        <LinearLayout
+                            android:id="@+id/toolEditPdf"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="@dimen/tool_padding"
+                            android:background="@drawable/bg_tool_item"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <FrameLayout
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
+                                android:background="@drawable/bg_tool_icon_circle"
+                                android:backgroundTint="@color/tool_edit_bg">
+
+                                <ImageView
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_edit"
+                                    app:tint="@color/tool_edit" />
+                            </FrameLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
+                                android:text="Edit"
+                                android:textSize="@dimen/tool_text_size"
+                                android:textColor="?android:textColorPrimary"
+                                android:maxLines="1" />
+                        </LinearLayout>
+
+                        <!-- Watermark -->
+                        <LinearLayout
+                            android:id="@+id/toolWatermark"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="@dimen/tool_padding"
+                            android:background="@drawable/bg_tool_item"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <FrameLayout
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
+                                android:background="@drawable/bg_tool_icon_circle"
+                                android:backgroundTint="@color/tool_watermark_bg">
+
+                                <ImageView
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_watermark"
+                                    app:tint="@color/tool_watermark" />
+                            </FrameLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
+                                android:text="Watermark"
+                                android:textSize="@dimen/tool_text_size"
+                                android:textColor="?android:textColorPrimary"
+                                android:maxLines="1" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- Tools Grid - Row 3: Page No., Copy -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <!-- Page Numbers -->
+                        <LinearLayout
+                            android:id="@+id/toolPageNumbers"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="@dimen/tool_padding"
+                            android:background="@drawable/bg_tool_item"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <FrameLayout
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
+                                android:background="@drawable/bg_tool_icon_circle"
+                                android:backgroundTint="@color/tool_pagenumbers_bg">
+
+                                <ImageView
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_numbers"
+                                    app:tint="@color/tool_pagenumbers" />
+                            </FrameLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
+                                android:text="Page No."
+                                android:textSize="@dimen/tool_text_size"
+                                android:textColor="?android:textColorPrimary"
+                                android:maxLines="1" />
+                        </LinearLayout>
+
+                        <!-- Copy -->
+                        <LinearLayout
+                            android:id="@+id/toolCopyPdf"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="@dimen/tool_padding"
+                            android:background="@drawable/bg_tool_item"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <FrameLayout
+                                android:layout_width="@dimen/tool_icon_container"
+                                android:layout_height="@dimen/tool_icon_container"
+                                android:background="@drawable/bg_tool_icon_circle"
+                                android:backgroundTint="@color/tool_copy_bg">
+
+                                <ImageView
+                                    android:layout_width="@dimen/tool_icon_size"
+                                    android:layout_height="@dimen/tool_icon_size"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_copy"
+                                    app:tint="@color/tool_copy" />
+                            </FrameLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/tool_text_margin_top"
+                                android:text="Copy"
+                                android:textSize="@dimen/tool_text_size"
+                                android:textColor="?android:textColorPrimary"
+                                android:maxLines="1" />
+                        </LinearLayout>
+
+                        <!-- Placeholders for alignment -->
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
 
                     </LinearLayout>
 
@@ -554,9 +495,9 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="12dp"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
+                android:layout_marginHorizontal="@dimen/card_margin"
+                android:layout_marginBottom="@dimen/card_margin"
+                app:cardCornerRadius="@dimen/card_corner_radius"
                 app:cardElevation="2dp"
                 app:strokeWidth="0dp">
 
@@ -570,14 +511,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:paddingHorizontal="16dp"
-                        android:paddingTop="16dp"
-                        android:paddingBottom="8dp"
+                        android:paddingHorizontal="@dimen/spacing_large"
+                        android:paddingTop="@dimen/spacing_large"
+                        android:paddingBottom="@dimen/spacing_medium"
                         android:gravity="center_vertical">
 
                         <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
+                            android:layout_width="@dimen/section_header_icon"
+                            android:layout_height="@dimen/section_header_icon"
                             android:src="@drawable/ic_document"
                             app:tint="@color/primary" />
 
@@ -585,9 +526,9 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="@dimen/spacing_medium"
                             android:text="@string/recent_files"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/section_header_text"
                             android:textStyle="bold"
                             android:textColor="?android:textColorPrimary" />
 
@@ -596,7 +537,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="36dp"
                             android:text="@string/clear_recent"
-                            android:textSize="12sp"
+                            android:textSize="@dimen/tool_text_size"
                             app:cornerRadius="18dp"
                             style="@style/Widget.Material3.Button.TextButton" />
 
@@ -607,8 +548,8 @@
                         android:id="@+id/recyclerRecentFiles"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:minHeight="150dp"
-                        android:padding="8dp"
+                        android:minHeight="@dimen/recent_min_height"
+                        android:padding="@dimen/spacing_medium"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false" />
 
@@ -617,21 +558,21 @@
                         android:id="@+id/emptyState"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:minHeight="180dp"
+                        android:minHeight="@dimen/empty_min_height"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="24dp"
+                        android:padding="@dimen/spacing_xlarge"
                         android:visibility="gone">
 
                         <FrameLayout
-                            android:layout_width="72dp"
-                            android:layout_height="72dp"
+                            android:layout_width="@dimen/empty_icon_container"
+                            android:layout_height="@dimen/empty_icon_container"
                             android:background="@drawable/bg_tool_icon_circle"
                             android:backgroundTint="#F5F5F5">
 
                             <ImageView
-                                android:layout_width="36dp"
-                                android:layout_height="36dp"
+                                android:layout_width="@dimen/empty_icon_size"
+                                android:layout_height="@dimen/empty_icon_size"
                                 android:layout_gravity="center"
                                 android:src="@drawable/ic_document"
                                 app:tint="#BDBDBD" />
@@ -640,18 +581,18 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
+                            android:layout_marginTop="@dimen/section_header_margin"
                             android:text="@string/no_recent_files"
-                            android:textSize="16sp"
+                            android:textSize="@dimen/empty_title_size"
                             android:textStyle="bold"
                             android:textColor="?android:textColorSecondary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/spacing_small"
                             android:text="Tap the + button to open a document"
-                            android:textSize="14sp"
+                            android:textSize="@dimen/empty_subtitle_size"
                             android:textColor="?android:textColorSecondary"
                             android:gravity="center" />
 
@@ -671,7 +612,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_margin="@dimen/fab_margin"
         android:text="Open File"
         android:textColor="@android:color/white"
         app:icon="@drawable/ic_add"

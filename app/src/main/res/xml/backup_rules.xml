@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup rules for Google Play compliance.
+    Only backs up user preferences, not sensitive data.
+-->
 <full-backup-content>
+    <!-- Include shared preferences (user settings) -->
     <include domain="sharedpref" path="." />
+
+    <!-- Exclude device-specific preferences -->
     <exclude domain="sharedpref" path="device.xml" />
 </full-backup-content>

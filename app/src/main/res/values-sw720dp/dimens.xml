@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dimensions for 10" tablets (sw720dp) -->
+
+    <!-- Tool Grid - larger for large tablets -->
+    <dimen name="tool_icon_container">64dp</dimen>
+    <dimen name="tool_icon_size">32dp</dimen>
+    <dimen name="tool_text_size">16sp</dimen>
+    <dimen name="tool_padding">16dp</dimen>
+    <dimen name="tool_text_margin_top">12dp</dimen>
+
+    <!-- Cards -->
+    <dimen name="card_margin">20dp</dimen>
+    <dimen name="card_padding">20dp</dimen>
+    <dimen name="card_corner_radius">24dp</dimen>
+
+    <!-- Section Headers -->
+    <dimen name="section_header_icon">32dp</dimen>
+    <dimen name="section_header_text">22sp</dimen>
+    <dimen name="section_header_margin">20dp</dimen>
+
+    <!-- FAB -->
+    <dimen name="fab_margin">32dp</dimen>
+
+    <!-- Empty State -->
+    <dimen name="empty_icon_container">72dp</dimen>
+    <dimen name="empty_icon_size">36dp</dimen>
+    <dimen name="empty_title_size">18sp</dimen>
+    <dimen name="empty_subtitle_size">16sp</dimen>
+
+    <!-- Recent Files -->
+    <dimen name="recent_min_height">200dp</dimen>
+    <dimen name="empty_min_height">220dp</dimen>
+
+    <!-- Spacing -->
+    <dimen name="spacing_small">8dp</dimen>
+    <dimen name="spacing_medium">16dp</dimen>
+    <dimen name="spacing_large">24dp</dimen>
+    <dimen name="spacing_xlarge">32dp</dimen>
+</resources>

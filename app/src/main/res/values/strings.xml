@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DocMaster</string>
+    <string name="app_name">TenDocmas</string>
 
     <!-- Main Activity -->
     <string name="open_file">Open File</string>
@@ -36,9 +36,9 @@
     <string name="default_zoom">Default Zoom</string>
 
     <!-- About -->
-    <string name="about_title">About DocMaster</string>
+    <string name="about_title">About TenDocmas</string>
     <string name="about_version">Version 1.0</string>
-    <string name="about_description">Your complete PDF toolkit - edit, merge, split, compress, convert and more!\n\nSupported formats: PDF, DOC, DOCX</string>
+    <string name="about_description">Your complete PDF toolkit - edit, merge, split, convert and more!\n\nSupported formats: PDF, DOC, DOCX</string>
 
     <!-- Errors -->
     <string name="error_file_not_found">File not found</string>

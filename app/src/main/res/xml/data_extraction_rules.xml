@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Data extraction rules for Android 12+ (API 31+).
+    Controls cloud backup and device-to-device transfer behavior.
+-->
 <data-extraction-rules>
+    <!-- Cloud backup settings -->
     <cloud-backup>
+        <!-- Only backup user preferences -->
         <include domain="sharedpref" path="." />
+
+        <!-- Exclude device-specific preferences -->
         <exclude domain="sharedpref" path="device.xml" />
     </cloud-backup>
+
+    <!-- Device-to-device transfer settings -->
     <device-transfer>
+        <!-- Transfer user preferences during device migration -->
         <include domain="sharedpref" path="." />
+
+        <!-- Exclude device-specific preferences -->
+        <exclude domain="sharedpref" path="device.xml" />
     </device-transfer>
 </data-extraction-rules>

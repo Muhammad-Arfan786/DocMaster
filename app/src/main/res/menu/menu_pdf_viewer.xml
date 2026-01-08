@@ -46,9 +46,6 @@
                 android:id="@+id/action_split_pdf"
                 android:title="Split PDF" />
             <item
-                android:id="@+id/action_compress_pdf"
-                android:title="Compress PDF" />
-            <item
                 android:id="@+id/action_add_page_numbers"
                 android:title="Add Page Numbers" />
             <item
@@ -66,9 +63,6 @@
             <item
                 android:id="@+id/action_copy_pdf"
                 android:title="Copy PDF" />
-            <item
-                android:id="@+id/action_convert_to_word"
-                android:title="PDF to Word (DOCX)" />
             <item
                 android:id="@+id/action_pdf_info"
                 android:title="PDF Info" />

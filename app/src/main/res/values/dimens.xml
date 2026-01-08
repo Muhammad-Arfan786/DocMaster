@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default dimensions (phones) -->
+
+    <!-- Tool Grid -->
+    <dimen name="tool_icon_container">48dp</dimen>
+    <dimen name="tool_icon_size">24dp</dimen>
+    <dimen name="tool_text_size">12sp</dimen>
+    <dimen name="tool_padding">8dp</dimen>
+    <dimen name="tool_text_margin_top">8dp</dimen>
+
+    <!-- Cards -->
+    <dimen name="card_margin">12dp</dimen>
+    <dimen name="card_padding">12dp</dimen>
+    <dimen name="card_corner_radius">16dp</dimen>
+
+    <!-- Section Headers -->
+    <dimen name="section_header_icon">24dp</dimen>
+    <dimen name="section_header_text">18sp</dimen>
+    <dimen name="section_header_margin">12dp</dimen>
+
+    <!-- FAB -->
+    <dimen name="fab_margin">16dp</dimen>
+
+    <!-- Empty State -->
+    <dimen name="empty_icon_container">56dp</dimen>
+    <dimen name="empty_icon_size">28dp</dimen>
+    <dimen name="empty_title_size">15sp</dimen>
+    <dimen name="empty_subtitle_size">13sp</dimen>
+
+    <!-- Recent Files -->
+    <dimen name="recent_min_height">120dp</dimen>
+    <dimen name="empty_min_height">140dp</dimen>
+
+    <!-- Spacing -->
+    <dimen name="spacing_small">4dp</dimen>
+    <dimen name="spacing_medium">8dp</dimen>
+    <dimen name="spacing_large">16dp</dimen>
+    <dimen name="spacing_xlarge">20dp</dimen>
+</resources>

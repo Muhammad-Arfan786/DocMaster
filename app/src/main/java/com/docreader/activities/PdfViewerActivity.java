@@ -34,7 +34,9 @@ import com.docreader.databinding.BottomSheetPdfEditorBinding;
 import com.docreader.models.Note;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.NotesManager;
+import com.docreader.utils.PreferencesManager;
 import com.docreader.utils.PdfCoverReplace;
+import com.docreader.models.RecentFile;
 import com.docreader.utils.PdfEditManager;
 import com.docreader.utils.PdfPageManager;
 import com.docreader.utils.PdfTextEditor;
@@ -1101,11 +1103,34 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                String savedPath = pdfEditManager.saveEditedPdf();
+                // First save to temp location
+                String tempPath = pdfEditManager.saveEditedPdf();
+                File tempFile = new File(tempPath);
+
+                // Generate proper filename
+                String baseName = fileName;
+                if (baseName.toLowerCase().endsWith(".pdf")) {
+                    baseName = baseName.substring(0, baseName.length() - 4);
+                }
+                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+                String newFileName = baseName + "_edited_" + timestamp + ".pdf";
+
+                // Save to Downloads folder
+                String finalPath = saveFileToDownloads(tempFile, newFileName);
+
+                // Delete temp file
+                tempFile.delete();
 
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
-                    showSavedFileDialog(savedPath, "PDF saved to:");
+
+                    if (finalPath != null) {
+                        // Add to recent files
+                        addToRecentFiles(finalPath, newFileName);
+                        showSavedFileDialogWithOpen(finalPath, newFileName, "PDF saved to Downloads:");
+                    } else {
+                        Toast.makeText(this, "Error saving to Downloads", Toast.LENGTH_SHORT).show();
+                    }
                 });
             } catch (IOException e) {
                 runOnUiThread(() -> {
@@ -1114,6 +1139,85 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+
+    /**
+     * Save file to Downloads folder and return the path
+     */
+    private String saveFileToDownloads(File sourceFile, String fileName) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                // Android 10+ use MediaStore
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName);
+                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf");
+                values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+
+                Uri uri = getContentResolver().insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+
+                if (uri != null) {
+                    try (java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                         java.io.FileInputStream in = new java.io.FileInputStream(sourceFile)) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    // Return a path that can be used
+                    return android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() + "/" + fileName;
+                }
+            } else {
+                // Older Android versions
+                File downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS);
+                File destFile = new File(downloadsDir, fileName);
+
+                try (java.io.FileInputStream in = new java.io.FileInputStream(sourceFile);
+                     java.io.FileOutputStream out = new java.io.FileOutputStream(destFile)) {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
+                }
+                return destFile.getAbsolutePath();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * Add saved file to recent files list
+     */
+    private void addToRecentFiles(String path, String name) {
+        PreferencesManager prefsManager = new PreferencesManager(this);
+        RecentFile recentFile = new RecentFile(name, path, "pdf", System.currentTimeMillis());
+        prefsManager.addRecentFile(recentFile);
+    }
+
+    /**
+     * Show saved file dialog with option to open the file
+     */
+    private void showSavedFileDialogWithOpen(String path, String fileName, String message) {
+        new AlertDialog.Builder(this)
+                .setTitle("Success")
+                .setMessage(message + "\n\n" + fileName)
+                .setPositiveButton("Open", (d, w) -> {
+                    // Open the saved PDF
+                    filePath = path;
+                    this.fileName = fileName;
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle(fileName);
+                    }
+                    reloadPdf();
+                })
+                .setNegativeButton("Close", null)
+                .show();
     }
 
     /**
@@ -1166,6 +1270,9 @@ public class PdfViewerActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "PDF saved to original file!", Toast.LENGTH_SHORT).show();
+
+                    // Add to recent files
+                    addToRecentFiles(filePath, fileName);
 
                     // Reload the PDF to show saved changes
                     reloadPdf();
@@ -3227,8 +3334,16 @@ public class PdfViewerActivity extends AppCompatActivity {
                 }
 
                 String finalPath = savedPath;
+                String fullPath = android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() + "/" + finalFileName;
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
+
+                    // Add to recent files if it's a PDF
+                    if (finalFileName.toLowerCase().endsWith(".pdf")) {
+                        addToRecentFiles(fullPath, finalFileName);
+                    }
+
                     Toast.makeText(this, "Saved to: " + finalPath, Toast.LENGTH_LONG).show();
                 });
 

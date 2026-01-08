@@ -2,6 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
+// Load keystore properties from file (not in version control)
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace 'com.docreader'
     compileSdk 35
@@ -18,10 +25,10 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('docmaster-release.keystore')
-            storePassword 'docmaster123'
-            keyAlias 'docmaster'
-            keyPassword 'docmaster123'
+            storeFile file(keystoreProperties['storeFile'] ?: 'docmaster-release.keystore')
+            storePassword keystoreProperties['storePassword'] ?: System.getenv('KEYSTORE_PASSWORD') ?: ''
+            keyAlias keystoreProperties['keyAlias'] ?: 'docmaster'
+            keyPassword keystoreProperties['keyPassword'] ?: System.getenv('KEY_PASSWORD') ?: ''
         }
     }
 

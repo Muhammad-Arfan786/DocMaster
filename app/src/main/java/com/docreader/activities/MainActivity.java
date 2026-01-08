@@ -24,6 +24,7 @@ import com.docreader.R;
 import com.docreader.adapters.RecentFilesAdapter;
 import com.docreader.databinding.ActivityMainBinding;
 import com.docreader.models.RecentFile;
+import com.docreader.utils.AppLogger;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.PreferencesManager;
 
@@ -191,7 +192,7 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
             openDocument(tempFile.getAbsolutePath(), fileName);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("MainActivity", "Error", e);
             Toast.makeText(this, R.string.error_loading, Toast.LENGTH_SHORT).show();
         }
     }
@@ -376,7 +377,7 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
             pendingToolType = null;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("MainActivity", "Error", e);
             Toast.makeText(this, R.string.error_loading, Toast.LENGTH_SHORT).show();
             pendingToolType = null;
         }
@@ -426,7 +427,7 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
             pendingToolType = null;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("MainActivity", "Error", e);
             Toast.makeText(this, R.string.error_loading, Toast.LENGTH_SHORT).show();
             pendingToolType = null;
         }

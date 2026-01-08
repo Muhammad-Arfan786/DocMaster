@@ -22,6 +22,7 @@ import androidx.core.content.FileProvider;
 
 import com.docreader.R;
 import com.docreader.databinding.ActivityDocViewerBinding;
+import com.docreader.utils.AppLogger;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.PdfToWordConverter;
 import com.docreader.utils.WordToPdfConverter;
@@ -177,7 +178,7 @@ public class DocViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("DocViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, R.string.error_loading + ": " + e.getMessage(),
@@ -293,7 +294,7 @@ public class DocViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("DocViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -395,7 +396,7 @@ public class DocViewerActivity extends AppCompatActivity {
             });
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("DocViewerActivity", "Error", e);
             runOnUiThread(() -> {
                 binding.progressBar.setVisibility(View.GONE);
                 Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -584,7 +585,7 @@ public class DocViewerActivity extends AppCompatActivity {
                             });
 
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            AppLogger.e("DocViewerActivity", "Error", e);
                             runOnUiThread(() -> {
                                 binding.progressBar.setVisibility(View.GONE);
                                 Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -640,7 +641,7 @@ public class DocViewerActivity extends AppCompatActivity {
                                 });
 
                             } catch (Exception e) {
-                                e.printStackTrace();
+                                AppLogger.e("DocViewerActivity", "Error", e);
                                 runOnUiThread(() -> {
                                     binding.progressBar.setVisibility(View.GONE);
                                     Toast.makeText(this, "Error creating PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();

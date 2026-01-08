@@ -296,7 +296,7 @@ public class PdfAnnotationEditor {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfAnnotationEditor", "Error getting annotations", e);
         }
 
         return annotations;

@@ -223,7 +223,7 @@ public class PdfDirectEditor {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfDirectEditor", "Error", e);
         }
     }
 
@@ -347,7 +347,7 @@ public class PdfDirectEditor {
                 return PdfTextExtractor.getTextFromPage(pdfDocument.getPage(pageNumber));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfDirectEditor", "Error", e);
         }
         return "";
     }

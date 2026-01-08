@@ -21,7 +21,7 @@ public class FileUtils {
      */
     public static String getFileName(Context context, Uri uri) {
         String result = null;
-        if (uri.getScheme().equals("content")) {
+        if ("content".equals(uri.getScheme())) {
             try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
                 if (cursor != null && cursor.moveToFirst()) {
                     int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
@@ -162,7 +162,7 @@ public class FileUtils {
             return cacheFile.getAbsolutePath();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("FileUtils", "Error", e);
             return null;
         }
     }

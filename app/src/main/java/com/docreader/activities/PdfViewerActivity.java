@@ -20,6 +20,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -32,6 +35,8 @@ import com.docreader.R;
 import com.docreader.databinding.ActivityPdfViewerBinding;
 import com.docreader.databinding.BottomSheetPdfEditorBinding;
 import com.docreader.models.Note;
+import com.docreader.utils.AppExecutors;
+import com.docreader.utils.AppLogger;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.NotesManager;
 import com.docreader.utils.PreferencesManager;
@@ -67,11 +72,12 @@ import java.util.Locale;
 public class PdfViewerActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
-    private static final int REQUEST_PICK_IMAGE = 101;
-    private static final int REQUEST_PICK_PDF_MERGE = 102;
-    private static final int REQUEST_SIGNATURE = 103;
 
     private ActivityPdfViewerBinding binding;
+
+    // Activity Result Launchers (replacing deprecated startActivityForResult)
+    private ActivityResultLauncher<Intent> pickImageLauncher;
+    private ActivityResultLauncher<Intent> pickPdfMergeLauncher;
     private String filePath;
     private String fileName;
     private int totalPages = 0;
@@ -123,6 +129,12 @@ public class PdfViewerActivity extends AppCompatActivity {
         notesManager = new NotesManager(this);
         pdfEditManager = new PdfEditManager(this, filePath);
         pdfPageManager = new PdfPageManager(this, filePath);
+
+        // Initialize Activity Result Launchers
+        initActivityResultLaunchers();
+
+        // Setup back press handling
+        setupBackPressHandler();
 
         setupToolbar();
         setupControls();
@@ -204,6 +216,76 @@ public class PdfViewerActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * Initialize Activity Result Launchers (replacing deprecated startActivityForResult)
+     */
+    private void initActivityResultLaunchers() {
+        pickImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        handleImagePickResult(result.getData());
+                    }
+                }
+        );
+
+        pickPdfMergeLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        handleMergePdfPickResult(result.getData());
+                    }
+                }
+        );
+    }
+
+    /**
+     * Handle image pick result from launcher
+     */
+    private void handleImagePickResult(Intent data) {
+        Uri imageUri = data.getData();
+        if (imageUri != null) {
+            addImageToPdf(imageUri);
+        }
+    }
+
+    /**
+     * Handle PDF merge pick result from launcher
+     */
+    private void handleMergePdfPickResult(Intent data) {
+        List<Uri> pdfUris = new ArrayList<>();
+
+        if (data.getClipData() != null) {
+            int count = data.getClipData().getItemCount();
+            for (int i = 0; i < count; i++) {
+                pdfUris.add(data.getClipData().getItemAt(i).getUri());
+            }
+        } else if (data.getData() != null) {
+            pdfUris.add(data.getData());
+        }
+
+        if (!pdfUris.isEmpty()) {
+            mergePdfs(pdfUris);
+        }
+    }
+
+    /**
+     * Setup back press handling using OnBackPressedCallback (replacing deprecated onBackPressed)
+     */
+    private void setupBackPressHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (isEditMode) {
+                    exitEditMode();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+    }
+
     private void setupToolbar() {
         setSupportActionBar(binding.toolbar);
         if (getSupportActionBar() != null) {
@@ -211,7 +293,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(fileName != null ? fileName : "PDF Viewer");
         }
 
-        binding.toolbar.setNavigationOnClickListener(v -> onBackPressed());
+        binding.toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
     }
 
     private void setupControls() {
@@ -485,7 +567,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void deleteCurrentPage() {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 List<Integer> pagesToDelete = Collections.singletonList(currentPage + 1);
                 String newPath = pdfPageManager.deletePages(pagesToDelete);
@@ -503,7 +585,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showRotatePageDialog() {
@@ -530,7 +612,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void rotatePage(int degrees, boolean allPages) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String newPath;
                 if (allPages) {
@@ -552,13 +634,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void duplicateCurrentPage() {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String newPath = pdfPageManager.duplicatePage(currentPage + 1);
 
@@ -575,7 +657,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showExtractPagesDialog() {
@@ -604,7 +686,7 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String newPath = pdfPageManager.extractPages(pages);
 
@@ -619,7 +701,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showAddBlankPageDialog() {
@@ -642,7 +724,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addBlankPage(int afterPage) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String newPath = pdfPageManager.addBlankPage(afterPage, PageSize.A4);
 
@@ -659,7 +741,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showReorderPagesDialog() {
@@ -692,7 +774,7 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String newPath = pdfPageManager.reorderPages(newOrder);
 
@@ -710,13 +792,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void splitPdfIntoPages() {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 List<String> paths = pdfPageManager.splitAllPages();
 
@@ -735,14 +817,14 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     // ==================== CONTENT OPERATIONS ====================
 
     private void pickImageToAdd() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        startActivityForResult(intent, REQUEST_PICK_IMAGE);
+        pickImageLauncher.launch(intent);
     }
 
     private void addImageToPdf(Uri imageUri) {
@@ -763,7 +845,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addImageAsNewPage(Uri imageUri) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String imagePath = FileUtils.getPathFromUri(this, imageUri);
                 if (imagePath == null) {
@@ -785,13 +867,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void addImageToCurrentPage(Uri imageUri) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String imagePath = FileUtils.getPathFromUri(this, imageUri);
                 if (imagePath == null) {
@@ -813,7 +895,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showSignatureDialog() {
@@ -842,7 +924,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addWatermark(String text) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Add text annotation to center of each page as watermark
                 for (int i = 0; i < totalPages; i++) {
@@ -863,7 +945,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void pickPdfsToMerge() {
@@ -873,13 +955,13 @@ public class PdfViewerActivity extends AppCompatActivity {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("application/pdf");
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        startActivityForResult(Intent.createChooser(intent, "Select PDFs to merge"), REQUEST_PICK_PDF_MERGE);
+        pickPdfMergeLauncher.launch(Intent.createChooser(intent, "Select PDFs to merge"));
     }
 
     private void mergePdfs(List<Uri> pdfUris) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 List<String> pdfPaths = new ArrayList<>();
                 pdfPaths.add(filePath); // Current PDF first
@@ -917,7 +999,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
-        }).start();
+        });
     }
 
     // ==================== EDIT MODE ====================
@@ -1051,7 +1133,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             }
         }
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // First save to temp location
                 String tempPath = pdfEditManager.saveEditedPdf();
@@ -1088,7 +1170,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     /**
@@ -1148,7 +1230,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                 return destFile.getAbsolutePath();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfViewerActivity", "Error", e);
         }
         return null;
     }
@@ -1216,7 +1298,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             }
         }
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // First save to temp location
                 String tempPath = pdfEditManager.saveEditedPdf();
@@ -1253,7 +1335,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     /**
@@ -1289,7 +1371,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             }
         }
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String savedPath = pdfEditManager.saveEditedPdf();
 
@@ -1306,7 +1388,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error saving PDF: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showSavedFileDialog(String path, String message) {
@@ -1396,13 +1478,13 @@ public class PdfViewerActivity extends AppCompatActivity {
 
     private void rerenderPages() {
         binding.progressBar.setVisibility(View.VISIBLE);
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             for (int i = 0; i < totalPages; i++) {
                 final int pageIndex = i;
                 runOnUiThread(() -> renderPage(pageIndex));
             }
             runOnUiThread(() -> binding.progressBar.setVisibility(View.GONE));
-        }).start();
+        });
     }
 
     private void goToPreviousPage() {
@@ -1589,7 +1671,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addTextToPdf(int pageNumber, float leftPct, float topPct, String text, float fontSize) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Get page dimensions
                 float[] dims = PdfCoverReplace.getPageDimensions(filePath, pageNumber);
@@ -1636,13 +1718,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showAddStickyNoteDialog() {
@@ -1696,7 +1778,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addStickyNoteToPdf(int pageNumber, String noteText) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Get page dimensions
                 float[] dims = PdfCoverReplace.getPageDimensions(filePath, pageNumber);
@@ -1747,19 +1829,19 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void saveEditedToOriginal(File editedFile) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Copy edited file to original location
                 File originalFile = new File(filePath);
@@ -1789,7 +1871,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     // ==================== EDIT TEXT MODE (Cover & Replace) ====================
@@ -1987,7 +2069,7 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Generate output file name
                 String baseName = fileName;
@@ -2043,7 +2125,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                                     if (pdfRenderer != null) pdfRenderer.close();
                                     if (fileDescriptor != null) fileDescriptor.close();
                                 } catch (IOException e) {
-                                    e.printStackTrace();
+                                    AppLogger.e("PdfViewerActivity", "Error", e);
                                 }
                                 loadPdf();
                                 if (getSupportActionBar() != null) {
@@ -2057,13 +2139,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     // ==================== VISUAL EDIT MODE (Tap-to-Edit) ====================
@@ -2092,7 +2174,7 @@ public class PdfViewerActivity extends AppCompatActivity {
         binding.progressBar.setVisibility(View.VISIBLE);
 
         // Extract text blocks for current page in background
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Extract text blocks for current page
                 List<VisualPdfEditor.TextBlock> blocks =
@@ -2123,13 +2205,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error extracting text: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showVisualEditInstructions(int blockCount) {
@@ -2284,7 +2366,7 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Generate output file name
                 String baseName = fileName;
@@ -2317,7 +2399,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                                     if (pdfRenderer != null) pdfRenderer.close();
                                     if (fileDescriptor != null) fileDescriptor.close();
                                 } catch (IOException e) {
-                                    e.printStackTrace();
+                                    AppLogger.e("PdfViewerActivity", "Error", e);
                                 }
                                 loadPdf();
                                 if (getSupportActionBar() != null) {
@@ -2336,13 +2418,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void exitVisualEditMode() {
@@ -2382,7 +2464,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void startEditAsCopy() {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Extract all text from PDF with page markers
                 String allText = PdfCopyEditor.getAllText(filePath);
@@ -2394,13 +2476,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showCopyEditDialog(String originalText, int pageCount) {
@@ -2485,7 +2567,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void saveCopyWithEdits(String editedText, boolean replaceOriginal) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // Parse edited text into page map
                 java.util.Map<Integer, String> pageEdits = PdfCopyEditor.parseEditedText(editedText);
@@ -2577,13 +2659,13 @@ public class PdfViewerActivity extends AppCompatActivity {
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     // ==================== ACTIVITY CALLBACKS ====================
@@ -2721,7 +2803,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     intent.setType("application/pdf");
                     intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    startActivityForResult(intent, REQUEST_PICK_PDF_MERGE);
+                    pickPdfMergeLauncher.launch(intent);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -2748,14 +2830,14 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void splitIntoSinglePages() {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             PdfTools.PdfResult result = PdfTools.splitPdf(filePath, getCacheDir());
 
             runOnUiThread(() -> {
                 binding.progressBar.setVisibility(View.GONE);
                 showToolResultDialog(result, "Split PDF");
             });
-        }).start();
+        });
     }
 
     private void showExtractPagesToolDialog() {
@@ -2802,7 +2884,9 @@ public class PdfViewerActivity extends AppCompatActivity {
                         for (int i = start; i <= end && i <= maxPage; i++) {
                             if (i >= 1 && !pages.contains(i)) pages.add(i);
                         }
-                    } catch (NumberFormatException e) { }
+                    } catch (NumberFormatException e) {
+                        AppLogger.w("Invalid page range format: " + part);
+                    }
                 }
             } else {
                 try {
@@ -2810,7 +2894,9 @@ public class PdfViewerActivity extends AppCompatActivity {
                     if (page >= 1 && page <= maxPage && !pages.contains(page)) {
                         pages.add(page);
                     }
-                } catch (NumberFormatException e) { }
+                } catch (NumberFormatException e) {
+                    AppLogger.w("Invalid page number: " + part);
+                }
             }
         }
         return pages;
@@ -2819,7 +2905,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void extractPagesWithTool(List<Integer> pages) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             String outputName = baseName + "_extracted_" + timestamp + ".pdf";
@@ -2850,7 +2936,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showAddPageNumbersDialog() {
@@ -2869,7 +2955,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addPageNumbers(String position) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             String outputName = baseName + "_numbered_" + timestamp + ".pdf";
@@ -2900,7 +2986,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showPdfToImagesDialog() {
@@ -2921,7 +3007,7 @@ public class PdfViewerActivity extends AppCompatActivity {
         binding.progressBar.setVisibility(View.VISIBLE);
         Toast.makeText(this, "Converting to images...", Toast.LENGTH_SHORT).show();
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
                 String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
@@ -2968,7 +3054,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showAddWatermarkDialog() {
@@ -3001,7 +3087,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void addWatermarkWithTool(String text) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             String outputName = baseName + "_watermarked_" + timestamp + ".pdf";
@@ -3038,7 +3124,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showDeletePagesDialog() {
@@ -3077,7 +3163,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void deletePages(List<Integer> pages) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             String outputName = baseName + "_modified_" + timestamp + ".pdf";
@@ -3108,7 +3194,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showRotatePagesDialog() {
@@ -3162,7 +3248,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void rotatePagesAction(List<Integer> pages, int degrees) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String baseName = fileName.replace(".pdf", "").replace(".PDF", "");
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             String outputName = baseName + "_rotated_" + timestamp + ".pdf";
@@ -3196,7 +3282,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showCopyPdfDialog() {
@@ -3221,7 +3307,7 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void copyPdf(String name) {
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             String outputName = name.endsWith(".pdf") ? name : name + ".pdf";
             PdfTools.PdfResult result = PdfTools.copyPdf(filePath, getCacheDir(), outputName);
 
@@ -3249,7 +3335,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error: " + (result != null ? result.message : "Unknown error"), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     private void showPdfInfo() {
@@ -3310,7 +3396,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             if (pdfRenderer != null) pdfRenderer.close();
             if (fileDescriptor != null) fileDescriptor.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            AppLogger.e("PdfViewerActivity", "Error", e);
         }
 
         filePath = path;
@@ -3341,7 +3427,7 @@ public class PdfViewerActivity extends AppCompatActivity {
         final String finalFileName = fileName;
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        new Thread(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 File sourceFile = new File(sourcePath);
                 String savedPath;
@@ -3412,7 +3498,7 @@ public class PdfViewerActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error saving: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
     @Override
@@ -3426,7 +3512,7 @@ public class PdfViewerActivity extends AppCompatActivity {
             try {
                 fileDescriptor.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                AppLogger.e("PdfViewerActivity", "Error", e);
             }
         }
 

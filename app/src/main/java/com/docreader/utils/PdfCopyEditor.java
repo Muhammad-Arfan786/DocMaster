@@ -407,7 +407,7 @@ public class PdfCopyEditor {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfCopyEditor", "Error getting all text", e);
         }
 
         return sb.toString();

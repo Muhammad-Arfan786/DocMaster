@@ -291,7 +291,7 @@ public class PdfEditManager {
                     .endText();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfEditManager", "Error", e);
         }
     }
 

@@ -170,7 +170,7 @@ public class PdfCoverReplace {
                 return new float[]{pageSize.getWidth(), pageSize.getHeight()};
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfCoverReplace", "Error getting page dimensions", e);
         }
         return null;
     }

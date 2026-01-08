@@ -158,7 +158,7 @@ public class VisualPdfEditor {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("VisualPdfEditor", "Error", e);
         }
 
         return blocks;
@@ -226,7 +226,7 @@ public class VisualPdfEditor {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("VisualPdfEditor", "Error", e);
         }
 
         return blocks;

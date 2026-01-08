@@ -146,7 +146,7 @@ public class PdfTextEditor {
                 return new float[]{pageSize.getWidth(), pageSize.getHeight()};
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            AppLogger.e("PdfTextEditor", "Error", e);
         }
         return null;
     }

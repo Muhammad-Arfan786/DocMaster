@@ -460,6 +460,7 @@ public class PdfTools {
     public static PdfResult addWatermark(String pdfPath, File outputDir, String outputName,
                                           String watermarkText, float opacity, float fontSize,
                                           int rotation, int color) {
+        PdfDocument doc = null;
         try {
             if (!outputDir.exists()) outputDir.mkdirs();
 
@@ -468,20 +469,24 @@ public class PdfTools {
 
             PdfReader reader = new PdfReader(pdfPath);
             PdfWriter writer = new PdfWriter(outputFile);
-            PdfDocument doc = new PdfDocument(reader, writer);
+            doc = new PdfDocument(reader, writer);
             PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
 
             int pageCount = doc.getNumberOfPages();
 
             // Extract RGB from color
-            float r = ((color >> 16) & 0xFF) / 255f;
-            float g = ((color >> 8) & 0xFF) / 255f;
-            float b = (color & 0xFF) / 255f;
+            int r = (color >> 16) & 0xFF;
+            int g = (color >> 8) & 0xFF;
+            int b = color & 0xFF;
 
             for (int i = 1; i <= pageCount; i++) {
                 PdfPage page = doc.getPage(i);
                 Rectangle pageSize = page.getPageSize();
-                PdfCanvas canvas = new PdfCanvas(page);
+
+                // Create canvas on top of existing content
+                PdfCanvas canvas = new PdfCanvas(page.newContentStreamAfter(), page.getResources(), doc);
+
+                canvas.saveState();
 
                 // Set transparency
                 PdfExtGState gs = new PdfExtGState();
@@ -489,34 +494,44 @@ public class PdfTools {
                 canvas.setExtGState(gs);
 
                 // Calculate center position
-                float x = pageSize.getWidth() / 2;
-                float y = pageSize.getHeight() / 2;
+                float centerX = pageSize.getWidth() / 2;
+                float centerY = pageSize.getHeight() / 2;
 
-                canvas.saveState();
-                canvas.concatMatrix(
-                        Math.cos(Math.toRadians(rotation)), Math.sin(Math.toRadians(rotation)),
-                        -Math.sin(Math.toRadians(rotation)), Math.cos(Math.toRadians(rotation)),
-                        x, y
-                );
+                // Calculate text width for centering
+                float textWidth = font.getWidth(watermarkText, fontSize);
 
+                // Apply rotation transformation around center
+                double radians = Math.toRadians(rotation);
+                float cos = (float) Math.cos(radians);
+                float sin = (float) Math.sin(radians);
+
+                // Transform: translate to center, rotate
+                canvas.concatMatrix(cos, sin, -sin, cos, centerX, centerY);
+
+                // Draw text centered at origin (which is now at page center)
                 canvas.beginText();
                 canvas.setFontAndSize(font, fontSize);
-                canvas.setFillColor(new DeviceRgb((int)(r*255), (int)(g*255), (int)(b*255)));
-
-                float textWidth = font.getWidth(watermarkText, fontSize);
-                canvas.moveText(-textWidth / 2, 0);
+                canvas.setFillColor(new DeviceRgb(r, g, b));
+                canvas.moveText(-textWidth / 2, -fontSize / 3);
                 canvas.showText(watermarkText);
                 canvas.endText();
+
                 canvas.restoreState();
             }
 
             doc.close();
+            doc = null;
 
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Added watermark to " + pageCount + " pages");
 
         } catch (Exception e) {
+            e.printStackTrace();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            if (doc != null) {
+                try { doc.close(); } catch (Exception ignored) {}
+            }
         }
     }
 

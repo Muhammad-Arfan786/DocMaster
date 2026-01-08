@@ -38,6 +38,14 @@ public class PdfToWordConverter {
      * Convert a PDF file to DOCX format preserving line structure.
      */
     public static File convertToDocx(File pdfFile, File outputDir) throws Exception {
+        if (!pdfFile.exists()) {
+            throw new Exception("PDF file not found: " + pdfFile.getAbsolutePath());
+        }
+
+        if (!outputDir.exists()) {
+            outputDir.mkdirs();
+        }
+
         String baseName = pdfFile.getName();
         if (baseName.toLowerCase().endsWith(".pdf")) {
             baseName = baseName.substring(0, baseName.length() - 4);
@@ -48,8 +56,16 @@ public class PdfToWordConverter {
         // Extract text from PDF page by page
         List<PageContent> pages = extractPagesContent(pdfFile);
 
+        if (pages.isEmpty()) {
+            throw new Exception("Could not extract any text from PDF");
+        }
+
         // Create Word document
-        try (XWPFDocument document = new XWPFDocument()) {
+        XWPFDocument document = null;
+        FileOutputStream fos = null;
+        try {
+            document = new XWPFDocument();
+
             for (int i = 0; i < pages.size(); i++) {
                 PageContent page = pages.get(i);
 
@@ -58,15 +74,19 @@ public class PdfToWordConverter {
                     XWPFParagraph headerPara = document.createParagraph();
                     XWPFRun headerRun = headerPara.createRun();
                     headerRun.setBold(true);
-                    headerRun.setText("=== PAGE " + page.pageNumber + " ===");
+                    headerRun.setFontSize(14);
+                    headerRun.setText("--- Page " + page.pageNumber + " ---");
                     headerRun.addBreak();
                 }
 
                 // Add each line as text
                 for (String line : page.lines) {
-                    XWPFParagraph paragraph = document.createParagraph();
-                    XWPFRun run = paragraph.createRun();
-                    run.setText(line);
+                    if (line != null) {
+                        XWPFParagraph paragraph = document.createParagraph();
+                        XWPFRun run = paragraph.createRun();
+                        run.setFontSize(11);
+                        run.setText(line.isEmpty() ? " " : line);
+                    }
                 }
 
                 // Add page break between pages (except last)
@@ -77,9 +97,21 @@ public class PdfToWordConverter {
                 }
             }
 
-            try (FileOutputStream fos = new FileOutputStream(docxFile)) {
-                document.write(fos);
+            fos = new FileOutputStream(docxFile);
+            document.write(fos);
+            fos.flush();
+
+        } finally {
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
             }
+            if (document != null) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
+        }
+
+        if (!docxFile.exists() || docxFile.length() == 0) {
+            throw new Exception("Failed to create Word document");
         }
 
         return docxFile;

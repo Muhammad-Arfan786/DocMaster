@@ -2,28 +2,17 @@ package com.docreader.utils;
 
 import android.graphics.Color;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfName;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfString;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.annot.PdfAnnotation;
-import com.itextpdf.kernel.pdf.annot.PdfFreeTextAnnotation;
-import com.itextpdf.kernel.pdf.annot.PdfTextAnnotation;
-import com.itextpdf.kernel.pdf.annot.PdfStampAnnotation;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
-import com.itextpdf.kernel.pdf.extgstate.PdfExtGState;
-import com.itextpdf.layout.Canvas;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.properties.TextAlignment;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfAnnotation;
+import com.lowagie.text.pdf.PdfArray;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfDictionary;
+import com.lowagie.text.pdf.PdfGState;
+import com.lowagie.text.pdf.PdfName;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
+import com.lowagie.text.pdf.PdfString;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -107,14 +96,29 @@ public class PdfAnnotationEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
+
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
 
             for (TextNote note : notes) {
-                if (note.pageNumber > 0 && note.pageNumber <= pdfDocument.getNumberOfPages()) {
-                    addAnnotation(pdfDocument, note);
+                if (note.pageNumber > 0 && note.pageNumber <= reader.getNumberOfPages()) {
+                    addAnnotation(stamper, reader, note);
                 }
+            }
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -124,40 +128,51 @@ public class PdfAnnotationEditor {
     /**
      * Add a single annotation to the document
      */
-    private static void addAnnotation(PdfDocument pdfDocument, TextNote note) throws Exception {
-        PdfPage page = pdfDocument.getPage(note.pageNumber);
-
+    private static void addAnnotation(PdfStamper stamper, PdfReader reader, TextNote note) throws Exception {
         if (note.isSticky) {
             // Add sticky note (popup comment)
-            Rectangle rect = new Rectangle(note.x, note.y, 24, 24);
-            PdfTextAnnotation sticky = new PdfTextAnnotation(rect);
-            sticky.setContents(note.text);
-            sticky.setTitle(new PdfString("Note"));
+            Rectangle rect = new Rectangle(note.x, note.y, note.x + 24, note.y + 24);
 
             // Set color
             float r = ((note.textColor >> 16) & 0xFF) / 255f;
             float g = ((note.textColor >> 8) & 0xFF) / 255f;
             float b = (note.textColor & 0xFF) / 255f;
-            sticky.setColor(new float[]{r, g, b});
 
-            page.addAnnotation(sticky);
+            PdfAnnotation sticky = PdfAnnotation.createText(
+                    stamper.getWriter(),
+                    rect,
+                    "Note",
+                    note.text,
+                    false,
+                    null
+            );
+            // Note: setColor requires java.awt.Color which is not available on Android
+            // Annotation will use default color
+
+            stamper.addAnnotation(sticky, note.pageNumber);
         } else {
             // Add free text annotation (visible text box)
-            Rectangle rect = new Rectangle(note.x, note.y, note.width, note.height);
-            PdfFreeTextAnnotation freeText = new PdfFreeTextAnnotation(rect, new PdfString(note.text));
+            Rectangle rect = new Rectangle(note.x, note.y, note.x + note.width, note.y + note.height);
 
             // Set appearance
             float r = ((note.textColor >> 16) & 0xFF) / 255f;
             float g = ((note.textColor >> 8) & 0xFF) / 255f;
             float b = (note.textColor & 0xFF) / 255f;
-            freeText.setColor(new float[]{r, g, b});
+
+            PdfAnnotation freeText = PdfAnnotation.createFreeText(
+                    stamper.getWriter(),
+                    rect,
+                    note.text,
+                    null
+            );
 
             // Set default appearance string for the text
             String da = String.format("/Helv %.1f Tf %.2f %.2f %.2f rg",
                     note.fontSize, r, g, b);
-            freeText.setDefaultAppearance(new PdfString(da));
+            freeText.put(PdfName.DA, new PdfString(da));
+            // Note: setColor requires java.awt.Color which is not available on Android
 
-            page.addAnnotation(freeText);
+            stamper.addAnnotation(freeText, note.pageNumber);
         }
     }
 
@@ -179,47 +194,61 @@ public class PdfAnnotationEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                PdfCanvas canvas = new PdfCanvas(page);
-                PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
+
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                PdfContentByte canvas = stamper.getOverContent(pageNumber);
+                BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
                 if (coverBackground) {
                     // Draw white rectangle to cover existing content
                     canvas.saveState();
-                    canvas.setFillColor(ColorConstants.WHITE);
+                    canvas.setRGBColorFill(255, 255, 255);
                     canvas.rectangle(x, y, width, height);
                     canvas.fill();
                     canvas.restoreState();
                 }
 
                 // Draw the new text
-                float r = ((textColor >> 16) & 0xFF) / 255f;
-                float g = ((textColor >> 8) & 0xFF) / 255f;
-                float b = (textColor & 0xFF) / 255f;
-                DeviceRgb color = new DeviceRgb((int)(r*255), (int)(g*255), (int)(b*255));
+                int r = (textColor >> 16) & 0xFF;
+                int g = (textColor >> 8) & 0xFF;
+                int b = textColor & 0xFF;
 
                 canvas.saveState();
                 canvas.beginText();
                 canvas.setFontAndSize(font, fontSize);
-                canvas.setFillColor(color);
-                canvas.moveText(x + 2, y + height - fontSize - 2);
+                canvas.setRGBColorFill(r, g, b);
+                canvas.setTextMatrix(x + 2, y + height - fontSize - 2);
 
-                // Handle multi-line text
+                // Handle multi-line text - use raw PDF operators to avoid AWT dependencies
                 String[] lines = newText.split("\n");
                 for (int i = 0; i < lines.length; i++) {
                     if (i > 0) {
-                        canvas.moveText(0, -fontSize - 2);
+                        canvas.setTextMatrix(x + 2, y + height - fontSize - 2 - (i * (fontSize + 2)));
                     }
-                    canvas.showText(lines[i]);
+                    String escaped = escapePdfString(lines[i]);
+                    canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
                 }
 
                 canvas.endText();
                 canvas.restoreState();
+            }
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -242,33 +271,48 @@ public class PdfAnnotationEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                PdfCanvas canvas = new PdfCanvas(page);
-                PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
+
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                PdfContentByte canvas = stamper.getOverContent(pageNumber);
+                BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
                 // Set transparency
-                PdfExtGState gs = new PdfExtGState();
+                PdfGState gs = new PdfGState();
                 gs.setFillOpacity(opacity);
 
-                float r = ((color >> 16) & 0xFF) / 255f;
-                float g = ((color >> 8) & 0xFF) / 255f;
-                float b = (color & 0xFF) / 255f;
-                DeviceRgb pdfColor = new DeviceRgb((int)(r*255), (int)(g*255), (int)(b*255));
+                int r = (color >> 16) & 0xFF;
+                int g = (color >> 8) & 0xFF;
+                int b = color & 0xFF;
 
                 canvas.saveState();
-                canvas.setExtGState(gs);
+                canvas.setGState(gs);
                 canvas.beginText();
                 canvas.setFontAndSize(font, fontSize);
-                canvas.setFillColor(pdfColor);
-                canvas.moveText(x, y);
-                canvas.showText(text);
+                canvas.setRGBColorFill(r, g, b);
+                canvas.setTextMatrix(x, y);
+                // Use raw PDF operators to avoid AWT dependencies
+                String escaped = escapePdfString(text);
+                canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
                 canvas.endText();
                 canvas.restoreState();
+            }
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -281,22 +325,32 @@ public class PdfAnnotationEditor {
     public static List<String> getAnnotations(String pdfPath, int pageNumber) {
         List<String> annotations = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                List<PdfAnnotation> annots = page.getAnnotations();
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                PdfDictionary page = reader.getPageN(pageNumber);
+                PdfArray annots = page.getAsArray(PdfName.ANNOTS);
 
-                for (PdfAnnotation annot : annots) {
-                    PdfString contents = annot.getContents();
-                    if (contents != null) {
-                        annotations.add(contents.getValue());
+                if (annots != null) {
+                    for (int i = 0; i < annots.size(); i++) {
+                        PdfDictionary annot = annots.getAsDict(i);
+                        if (annot != null) {
+                            PdfString contents = annot.getAsString(PdfName.CONTENTS);
+                            if (contents != null) {
+                                annotations.add(contents.toUnicodeString());
+                            }
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             AppLogger.e("PdfAnnotationEditor", "Error getting annotations", e);
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
         }
 
         return annotations;
@@ -317,17 +371,29 @@ public class PdfAnnotationEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                List<PdfAnnotation> annots = new ArrayList<>(page.getAnnotations());
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
 
-                for (PdfAnnotation annot : annots) {
-                    page.removeAnnotation(annot);
-                }
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                PdfDictionary page = reader.getPageN(pageNumber);
+                // Remove annotations array from page
+                page.remove(PdfName.ANNOTS);
+            }
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -346,5 +412,17 @@ public class PdfAnnotationEditor {
                 out.write(buffer, 0, bytesRead);
             }
         }
+    }
+
+    /**
+     * Escape special characters for PDF string literal.
+     */
+    private static String escapePdfString(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("(", "\\(")
+                   .replace(")", "\\)")
+                   .replace("\r", "\\r")
+                   .replace("\n", "\\n");
     }
 }

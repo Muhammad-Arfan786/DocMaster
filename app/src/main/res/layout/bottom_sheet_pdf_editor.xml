@@ -5,221 +5,165 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="?android:colorBackground"
-    android:padding="16dp">
+    android:padding="@dimen/spacing_large">
 
     <!-- Handle -->
     <View
-        android:layout_width="40dp"
-        android:layout_height="4dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_bottom_sheet_handle" />
+        style="@style/Widget.TenDocmas.BottomSheetHandle" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="PDF Editor"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="?android:textColorPrimary"
-        android:layout_marginBottom="16dp" />
+        android:textAppearance="@style/TextAppearance.TenDocmas.Headline"
+        android:layout_marginBottom="@dimen/bottom_sheet_title_margin" />
 
     <!-- Page Operations Section -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Page Operations"
-        android:textSize="14sp"
-        android:textColor="?android:textColorSecondary"
-        android:layout_marginBottom="8dp" />
+        android:text="@string/section_page_operations"
+        android:textAppearance="@style/TextAppearance.TenDocmas.Subtitle"
+        android:layout_marginBottom="@dimen/spacing_medium" />
 
     <GridLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:columnCount="4"
         android:rowCount="2"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="@dimen/spacing_large">
 
         <!-- Delete Page -->
         <LinearLayout
             android:id="@+id/btnDeletePage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_delete_page">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_delete_page"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Delete"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_delete_page"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Rotate Page -->
         <LinearLayout
             android:id="@+id/btnRotatePage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_rotate_page">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_rotate"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Rotate"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_rotate_page"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Duplicate Page -->
         <LinearLayout
             android:id="@+id/btnDuplicatePage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_duplicate_page">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_duplicate"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Duplicate"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_duplicate_page"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Extract Page -->
         <LinearLayout
             android:id="@+id/btnExtractPage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_extract_page">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_extract"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Extract"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_extract_page"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Add Blank Page -->
         <LinearLayout
             android:id="@+id/btnAddBlankPage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_add_blank_page">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_add_page"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Add Page"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_add_page"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Reorder Pages -->
         <LinearLayout
             android:id="@+id/btnReorderPages"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_reorder_pages">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_reorder"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Reorder"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_reorder_pages"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Split PDF -->
         <LinearLayout
             android:id="@+id/btnSplitPdf"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_split_pdf">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_split"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Split"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_split_pdf"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
     </GridLayout>
@@ -228,119 +172,90 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Add Content"
-        android:textSize="14sp"
-        android:textColor="?android:textColorSecondary"
-        android:layout_marginBottom="8dp" />
+        android:text="@string/section_add_content"
+        android:textAppearance="@style/TextAppearance.TenDocmas.Subtitle"
+        android:layout_marginBottom="@dimen/spacing_medium" />
 
     <GridLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:columnCount="4"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="@dimen/spacing_large">
 
         <!-- Add Image -->
         <LinearLayout
             android:id="@+id/btnAddImage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_add_image">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_add_image"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Add Image"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_add_image"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Add Signature -->
         <LinearLayout
             android:id="@+id/btnAddSignature"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_add_signature">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_signature"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Signature"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_add_signature"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Add Watermark -->
         <LinearLayout
             android:id="@+id/btnAddWatermark"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_add_watermark">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_watermark"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Watermark"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_add_watermark"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
         <!-- Merge PDFs -->
         <LinearLayout
             android:id="@+id/btnMergePdfs"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground">
+            style="@style/Widget.TenDocmas.EditorGridItem"
+            android:contentDescription="@string/cd_merge_pdfs">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                style="@style/Widget.TenDocmas.EditorGridIcon"
                 android:src="@drawable/ic_merge"
-                app:tint="@color/primary" />
+                android:importantForAccessibility="no" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Merge"
-                android:textSize="12sp"
-                android:layout_marginTop="4dp"
-                android:textColor="?android:textColorPrimary" />
+                android:text="@string/op_merge_pdfs"
+                android:textAppearance="@style/TextAppearance.TenDocmas.ToolLabel"
+                android:layout_marginTop="@dimen/spacing_small" />
         </LinearLayout>
 
     </GridLayout>

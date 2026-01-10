@@ -1,40 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Default dimensions (phones) -->
+    <!-- Default dimensions (phones) - Modern Design -->
 
-    <!-- Tool Grid -->
-    <dimen name="tool_icon_container">48dp</dimen>
-    <dimen name="tool_icon_size">24dp</dimen>
+    <!-- Tool Grid - Larger for modern look -->
+    <dimen name="tool_icon_container">56dp</dimen>
+    <dimen name="tool_icon_size">28dp</dimen>
     <dimen name="tool_text_size">12sp</dimen>
-    <dimen name="tool_padding">8dp</dimen>
+    <dimen name="tool_padding">12dp</dimen>
     <dimen name="tool_text_margin_top">8dp</dimen>
 
-    <!-- Cards -->
-    <dimen name="card_margin">12dp</dimen>
-    <dimen name="card_padding">12dp</dimen>
+    <!-- Cards - Larger corner radius for modern look -->
+    <dimen name="card_margin">16dp</dimen>
+    <dimen name="card_padding">16dp</dimen>
     <dimen name="card_corner_radius">16dp</dimen>
+    <dimen name="card_corner_radius_large">28dp</dimen>
 
     <!-- Section Headers -->
     <dimen name="section_header_icon">24dp</dimen>
     <dimen name="section_header_text">18sp</dimen>
-    <dimen name="section_header_margin">12dp</dimen>
+    <dimen name="section_header_margin">16dp</dimen>
 
-    <!-- FAB -->
-    <dimen name="fab_margin">16dp</dimen>
+    <!-- FAB - More breathing room -->
+    <dimen name="fab_margin">24dp</dimen>
 
     <!-- Empty State -->
-    <dimen name="empty_icon_container">56dp</dimen>
-    <dimen name="empty_icon_size">28dp</dimen>
-    <dimen name="empty_title_size">15sp</dimen>
-    <dimen name="empty_subtitle_size">13sp</dimen>
+    <dimen name="empty_icon_container">72dp</dimen>
+    <dimen name="empty_icon_size">36dp</dimen>
+    <dimen name="empty_title_size">16sp</dimen>
+    <dimen name="empty_subtitle_size">14sp</dimen>
 
     <!-- Recent Files -->
-    <dimen name="recent_min_height">120dp</dimen>
-    <dimen name="empty_min_height">140dp</dimen>
+    <dimen name="recent_min_height">160dp</dimen>
+    <dimen name="empty_min_height">180dp</dimen>
 
-    <!-- Spacing -->
+    <!-- Spacing - More breathing room -->
     <dimen name="spacing_small">4dp</dimen>
     <dimen name="spacing_medium">8dp</dimen>
     <dimen name="spacing_large">16dp</dimen>
-    <dimen name="spacing_xlarge">20dp</dimen>
+    <dimen name="spacing_xlarge">24dp</dimen>
+    <dimen name="spacing_xxlarge">32dp</dimen>
+
+    <!-- Touch Targets (WCAG 2.1 AA minimum 44dp, Material 48dp) -->
+    <dimen name="touch_target_min">48dp</dimen>
+    <dimen name="color_button_size">48dp</dimen>
+    <dimen name="editor_tool_button_size">48dp</dimen>
+    <dimen name="bottom_bar_button_size">48dp</dimen>
+
+    <!-- Editor Grid -->
+    <dimen name="editor_grid_icon_size">32dp</dimen>
+    <dimen name="editor_grid_item_padding">12dp</dimen>
+
+    <!-- Bottom Sheet -->
+    <dimen name="bottom_sheet_handle_width">40dp</dimen>
+    <dimen name="bottom_sheet_handle_height">4dp</dimen>
+    <dimen name="bottom_sheet_title_margin">16dp</dimen>
+    <dimen name="bottom_sheet_corner_radius">28dp</dimen>
+
+    <!-- Navigation Bar -->
+    <dimen name="bottom_nav_height">56dp</dimen>
+    <dimen name="bottom_nav_corner_radius">28dp</dimen>
+
+    <!-- Divider -->
+    <dimen name="divider_thickness">1dp</dimen>
+    <dimen name="divider_height">30dp</dimen>
+
+    <!-- Color Button Stroke -->
+    <dimen name="color_button_stroke_selected">3dp</dimen>
+    <dimen name="color_button_stroke_normal">1dp</dimen>
+
+    <!-- Hero Header -->
+    <dimen name="hero_title_size">28sp</dimen>
+    <dimen name="hero_subtitle_size">16sp</dimen>
 </resources>

@@ -3,9 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="2dp">
+    android:layout_marginHorizontal="@dimen/spacing_medium"
+    android:layout_marginVertical="@dimen/spacing_small"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+    app:strokeWidth="0dp"
+    app:rippleColor="?attr/colorPrimary">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,12 +18,21 @@
         android:padding="16dp"
         android:gravity="center_vertical">
 
-        <!-- File Type Icon -->
-        <ImageView
-            android:id="@+id/ivFileIcon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_pdf" />
+        <!-- File Type Icon with background -->
+        <FrameLayout
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:background="@drawable/bg_tool_icon_circle"
+            android:backgroundTint="?attr/colorPrimaryContainer">
+
+            <ImageView
+                android:id="@+id/ivFileIcon"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_pdf"
+                app:tint="?attr/colorOnPrimaryContainer" />
+        </FrameLayout>
 
         <!-- File Info -->
         <LinearLayout
@@ -35,7 +48,7 @@
                 android:layout_height="wrap_content"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="?android:textColorPrimary"
+                android:textColor="?attr/colorOnSurface"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
@@ -45,7 +58,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:textSize="12sp"
-                android:textColor="?android:textColorSecondary"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:maxLines="1"
                 android:ellipsize="middle" />
 
@@ -54,20 +67,20 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textSize="12sp"
-                android:textColor="?android:textColorSecondary" />
+                android:textSize="11sp"
+                android:textColor="?attr/colorOutline" />
 
         </LinearLayout>
 
-        <!-- Delete Button -->
-        <ImageButton
+        <!-- Remove Button -->
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRemove"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_close"
-            android:contentDescription="Remove"
-            app:tint="?android:textColorSecondary" />
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            app:icon="@drawable/ic_close"
+            app:iconTint="?attr/colorOnSurfaceVariant"
+            android:contentDescription="@string/remove" />
 
     </LinearLayout>
 

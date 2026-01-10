@@ -3,9 +3,10 @@ package com.docreader.adapters;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import com.google.android.material.button.MaterialButton;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -67,7 +68,7 @@ public class RecentFilesAdapter extends RecyclerView.Adapter<RecentFilesAdapter.
         private final TextView tvFileName;
         private final TextView tvFilePath;
         private final TextView tvFileDate;
-        private final ImageButton btnRemove;
+        private final MaterialButton btnRemove;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ToolItemView custom attributes -->
+    <declare-styleable name="ToolItemView">
+        <attr name="toolIcon" format="reference" />
+        <attr name="toolIconTint" format="color|reference" />
+        <attr name="toolBackgroundTint" format="color|reference" />
+        <attr name="toolLabel" format="string|reference" />
+        <attr name="toolContentDescription" format="string|reference" />
+    </declare-styleable>
+
+    <!-- EditorGridItem custom attributes -->
+    <declare-styleable name="EditorGridItem">
+        <attr name="gridIcon" format="reference" />
+        <attr name="gridLabel" format="string|reference" />
+        <attr name="gridContentDescription" format="string|reference" />
+    </declare-styleable>
+</resources>

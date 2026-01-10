@@ -9,16 +9,11 @@ import android.graphics.Typeface;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Image;
+import com.lowagie.text.Document;
+import com.lowagie.text.Image;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfWriter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -95,7 +90,7 @@ public class PdfImageCopyEditor {
 
         ParcelFileDescriptor fd = null;
         PdfRenderer renderer = null;
-        PdfDocument pdfDoc = null;
+        Document document = null;
 
         try {
             // Open original PDF for rendering
@@ -104,22 +99,26 @@ public class PdfImageCopyEditor {
             renderer = new PdfRenderer(fd);
             int pageCount = renderer.getPageCount();
 
-            // Also open with iText to get original page sizes
-            PdfDocument originalDoc = new PdfDocument(new PdfReader(inputPath));
+            // Also open with OpenPDF to get original page sizes
+            PdfReader originalReader = new PdfReader(inputPath);
+
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = originalReader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
 
             // Create output PDF
-            PdfWriter writer = new PdfWriter(outputFile);
-            pdfDoc = new PdfDocument(writer);
-            Document document = new Document(pdfDoc);
+            document = new Document(docSize);
+            PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(outputFile));
+            document.open();
 
             // Process each page
             for (int i = 0; i < pageCount; i++) {
                 int pageNum = i + 1;
 
                 // Get original page size
-                PdfPage origPage = originalDoc.getPage(pageNum);
-                float origWidth = origPage.getPageSize().getWidth();
-                float origHeight = origPage.getPageSize().getHeight();
+                Rectangle origPageSize = originalReader.getPageSize(pageNum);
+                float origWidth = origPageSize.getWidth();
+                float origHeight = origPageSize.getHeight();
 
                 // Collect edits for this page
                 List<TextEdit> pageEdits = new ArrayList<>();
@@ -163,34 +162,34 @@ public class PdfImageCopyEditor {
                 byte[] imageBytes = baos.toByteArray();
                 bitmap.recycle();
 
-                ImageData imageData = ImageDataFactory.create(imageBytes);
-                Image pdfImage = new Image(imageData);
+                Image pdfImage = Image.getInstance(imageBytes);
 
                 // Set page size to match original
-                PageSize pageSize = new PageSize(origWidth, origHeight);
-                pdfDoc.addNewPage(pageSize);
+                document.setPageSize(new Rectangle(origWidth, origHeight));
+                document.newPage();
 
                 // Scale image to fit page exactly
-                pdfImage.setFixedPosition(pageNum, 0, 0);
+                pdfImage.setAbsolutePosition(0, 0);
                 pdfImage.scaleToFit(origWidth, origHeight);
 
                 document.add(pdfImage);
             }
 
-            originalDoc.close();
-            document.close();
+            originalReader.close();
 
             return outputFile;
 
+        } catch (Exception e) {
+            throw new IOException("Failed to create edited PDF", e);
         } finally {
+            if (document != null && document.isOpen()) {
+                document.close();
+            }
             if (renderer != null) {
                 renderer.close();
             }
             if (fd != null) {
                 fd.close();
-            }
-            if (pdfDoc != null && !pdfDoc.isClosed()) {
-                pdfDoc.close();
             }
 
             // Clean up temp files
@@ -292,15 +291,19 @@ public class PdfImageCopyEditor {
      * Get the dimensions of a PDF page
      */
     public static float[] getPageDimensions(String pdfPath, int pageNumber) {
+        PdfReader reader = null;
         try {
-            PdfDocument doc = new PdfDocument(new PdfReader(pdfPath));
-            PdfPage page = doc.getPage(pageNumber);
-            float width = page.getPageSize().getWidth();
-            float height = page.getPageSize().getHeight();
-            doc.close();
+            reader = new PdfReader(pdfPath);
+            Rectangle pageSize = reader.getPageSize(pageNumber);
+            float width = pageSize.getWidth();
+            float height = pageSize.getHeight();
             return new float[]{width, height};
         } catch (Exception e) {
             return null;
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 

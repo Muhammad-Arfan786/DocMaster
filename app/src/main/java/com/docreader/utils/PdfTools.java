@@ -6,26 +6,26 @@ import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.kernel.pdf.extgstate.PdfExtGState;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Image;
-import com.itextpdf.layout.properties.TextAlignment;
+// PDFBox-Android imports (Android-compatible, no java.awt dependencies)
+import com.tom_roush.pdfbox.multipdf.PDFMergerUtility;
+import com.tom_roush.pdfbox.multipdf.Splitter;
+import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import com.tom_roush.pdfbox.pdmodel.PDPage;
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
+import com.tom_roush.pdfbox.util.Matrix;
 
-import java.io.ByteArrayOutputStream;
+// OpenPDF imports - ONLY for rotation operations (no text, no java.awt)
+// CAUTION: Document, Rectangle, PageSize, PdfCopy, showText trigger java.awt crash
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
+import com.lowagie.text.pdf.PdfName;
+import com.lowagie.text.pdf.PdfNumber;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -36,8 +36,7 @@ import java.util.List;
 /**
  * Comprehensive PDF Tools utility class.
  * Provides all common PDF operations in one place.
- *
- * All methods use try-with-resources for proper resource cleanup.
+ * Uses OpenPDF library (LGPL license - free for commercial use).
  */
 public class PdfTools {
 
@@ -74,7 +73,8 @@ public class PdfTools {
     // ==================== MERGE PDF ====================
 
     /**
-     * Merge multiple PDF files into one
+     * Merge multiple PDF files into one using PDFBox-Android.
+     * PDFBox is Android-compatible and doesn't have java.awt dependencies.
      */
     public static PdfResult mergePdfs(List<String> pdfPaths, File outputDir, String outputName) {
         if (pdfPaths == null || pdfPaths.size() < 2) {
@@ -86,24 +86,27 @@ public class PdfTools {
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
 
-        try (PdfWriter writer = new PdfWriter(outputFile);
-             PdfDocument mergedDoc = new PdfDocument(writer)) {
+        try {
+            // Use PDFBox-Android for merging (no java.awt dependencies)
+            PDFMergerUtility merger = new PDFMergerUtility();
+            merger.setDestinationFileName(outputFile.getAbsolutePath());
 
             int totalPages = 0;
             for (String pdfPath : pdfPaths) {
-                try (PdfReader reader = new PdfReader(pdfPath);
-                     PdfDocument sourceDoc = new PdfDocument(reader)) {
-                    sourceDoc.copyPagesTo(1, sourceDoc.getNumberOfPages(), mergedDoc);
-                    totalPages += sourceDoc.getNumberOfPages();
-                }
+                merger.addSource(new File(pdfPath));
+                // Count pages using Android's PdfRenderer
+                totalPages += ResourceManager.getPageCount(pdfPath);
             }
+
+            // Perform the merge
+            merger.mergeDocuments(null);
 
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Merged " + pdfPaths.size() + " PDFs (" + totalPages + " pages)");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Merge PDFs failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
         }
     }
@@ -111,7 +114,7 @@ public class PdfTools {
     // ==================== SPLIT PDF ====================
 
     /**
-     * Split PDF into individual pages
+     * Split PDF into individual pages using PDFBox-Android.
      */
     public static PdfResult splitPdf(String pdfPath, File outputDir) {
         if (!outputDir.exists()) outputDir.mkdirs();
@@ -120,38 +123,38 @@ public class PdfTools {
         String baseName = inputFile.getName().replace(".pdf", "").replace(".PDF", "");
         List<String> outputFiles = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument sourceDoc = new PdfDocument(reader)) {
+        PDDocument document = null;
+        try {
+            document = PDDocument.load(inputFile);
+            Splitter splitter = new Splitter();
+            List<PDDocument> pages = splitter.split(document);
 
-            int pageCount = sourceDoc.getNumberOfPages();
-
-            for (int i = 1; i <= pageCount; i++) {
-                String pageFileName = baseName + "_page_" + i + ".pdf";
+            int pageNum = 1;
+            for (PDDocument page : pages) {
+                String pageFileName = baseName + "_page_" + pageNum + ".pdf";
                 File pageFile = new File(outputDir, pageFileName);
-
-                try (PdfWriter writer = new PdfWriter(pageFile);
-                     PdfDocument pageDoc = new PdfDocument(writer)) {
-                    sourceDoc.copyPagesTo(i, i, pageDoc);
-                }
-
+                page.save(pageFile);
+                page.close();
                 outputFiles.add(pageFile.getAbsolutePath());
+                pageNum++;
             }
 
             return new PdfResult(true, outputDir.getAbsolutePath(), baseName + "_pages",
-                    "Split into " + pageCount + " separate PDF files");
+                    "Split into " + (pageNum - 1) + " separate PDF files");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Split PDF failed", e);
-            // Clean up partial files
             for (String path : outputFiles) {
                 new File(path).delete();
             }
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            if (document != null) try { document.close(); } catch (Exception ignored) {}
         }
     }
 
     /**
-     * Extract specific pages from PDF
+     * Extract specific pages from PDF using PDFBox-Android.
      */
     public static PdfResult extractPages(String pdfPath, File outputDir, String outputName, List<Integer> pages) {
         if (!outputDir.exists()) outputDir.mkdirs();
@@ -159,32 +162,43 @@ public class PdfTools {
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
 
-        try (PdfReader srcReader = new PdfReader(pdfPath);
-             PdfDocument sourceDoc = new PdfDocument(srcReader);
-             PdfWriter writer = new PdfWriter(outputFile);
-             PdfDocument newDoc = new PdfDocument(writer)) {
+        PDDocument sourceDoc = null;
+        PDDocument targetDoc = null;
+        int extractedCount = 0;
+
+        try {
+            sourceDoc = PDDocument.load(new File(pdfPath));
+            targetDoc = new PDDocument();
 
             for (int pageNum : pages) {
-                if (pageNum >= 1 && pageNum <= sourceDoc.getNumberOfPages()) {
-                    sourceDoc.copyPagesTo(pageNum, pageNum, newDoc);
+                // PDFBox uses 0-based index
+                int pageIndex = pageNum - 1;
+                if (pageIndex >= 0 && pageIndex < sourceDoc.getNumberOfPages()) {
+                    PDPage page = sourceDoc.getPage(pageIndex);
+                    targetDoc.importPage(page);
+                    extractedCount++;
                 }
             }
 
-            int extractedCount = newDoc.getNumberOfPages();
+            targetDoc.save(outputFile);
+
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Extracted " + extractedCount + " pages");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Extract pages failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            if (targetDoc != null) try { targetDoc.close(); } catch (Exception ignored) {}
+            if (sourceDoc != null) try { sourceDoc.close(); } catch (Exception ignored) {}
         }
     }
 
     // ==================== COMPRESS PDF ====================
 
     /**
-     * Compress PDF by reducing image quality and optimizing
+     * Compress PDF by reducing image quality and optimizing using PDFBox-Android.
      */
     public static PdfResult compressPdf(Context context, String pdfPath, File outputDir, String outputName) {
         if (!outputDir.exists()) outputDir.mkdirs();
@@ -200,6 +214,7 @@ public class PdfTools {
         long originalSize = inputFile.length();
         PdfRenderer renderer = null;
         ParcelFileDescriptor fd = null;
+        PDDocument outputDoc = null;
 
         try {
             fd = ParcelFileDescriptor.open(inputFile, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -210,55 +225,46 @@ public class PdfTools {
                 return new PdfResult(false, null, null, "PDF has no pages");
             }
 
-            try (PdfReader origReader = new PdfReader(pdfPath);
-                 PdfDocument originalDoc = new PdfDocument(origReader);
-                 PdfWriter writer = new PdfWriter(outputFile);
-                 PdfDocument compressedDoc = new PdfDocument(writer);
-                 Document document = new Document(compressedDoc)) {
+            outputDoc = new PDDocument();
 
-                for (int i = 0; i < pageCount; i++) {
-                    PdfPage origPage = originalDoc.getPage(i + 1);
-                    float pageWidth = origPage.getPageSize().getWidth();
-                    float pageHeight = origPage.getPageSize().getHeight();
+            for (int i = 0; i < pageCount; i++) {
+                // Get page size using Android's PdfRenderer
+                PdfRenderer.Page page = renderer.openPage(i);
+                float pageWidth = page.getWidth();
+                float pageHeight = page.getHeight();
 
-                    // Render at lower DPI for compression
-                    PdfRenderer.Page page = renderer.openPage(i);
-                    float scale = 1.5f; // 108 DPI (72 * 1.5)
-                    int bitmapWidth = (int) (pageWidth * scale);
-                    int bitmapHeight = (int) (pageHeight * scale);
+                // Render at lower DPI for compression
+                float scale = 1.5f; // 108 DPI (72 * 1.5)
+                int bitmapWidth = (int) (pageWidth * scale);
+                int bitmapHeight = (int) (pageHeight * scale);
 
-                    // Limit bitmap size to prevent memory issues
-                    int maxSize = 2048;
-                    if (bitmapWidth > maxSize || bitmapHeight > maxSize) {
-                        float reduceScale = Math.min((float) maxSize / bitmapWidth, (float) maxSize / bitmapHeight);
-                        bitmapWidth = (int) (bitmapWidth * reduceScale);
-                        bitmapHeight = (int) (bitmapHeight * reduceScale);
-                    }
-
-                    Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.RGB_565);
-                    bitmap.eraseColor(Color.WHITE);
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                    page.close();
-
-                    // Compress to JPEG with quality 60 for better compression
-                    try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos);
-                        byte[] imageBytes = baos.toByteArray();
-                        bitmap.recycle();
-
-                        // Add to new PDF
-                        ImageData imageData = ImageDataFactory.create(imageBytes);
-                        Image pdfImage = new Image(imageData);
-
-                        PageSize pageSize = new PageSize(pageWidth, pageHeight);
-                        compressedDoc.addNewPage(pageSize);
-
-                        pdfImage.setFixedPosition(i + 1, 0, 0);
-                        pdfImage.scaleToFit(pageWidth, pageHeight);
-                        document.add(pdfImage);
-                    }
+                // Limit bitmap size to prevent memory issues
+                int maxSize = 2048;
+                if (bitmapWidth > maxSize || bitmapHeight > maxSize) {
+                    float reduceScale = Math.min((float) maxSize / bitmapWidth, (float) maxSize / bitmapHeight);
+                    bitmapWidth = (int) (bitmapWidth * reduceScale);
+                    bitmapHeight = (int) (bitmapHeight * reduceScale);
                 }
+
+                Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.RGB_565);
+                bitmap.eraseColor(Color.WHITE);
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                page.close();
+
+                // Create new page with original dimensions
+                PDPage pdPage = new PDPage(new PDRectangle(pageWidth, pageHeight));
+                outputDoc.addPage(pdPage);
+
+                // Add bitmap as JPEG image to page
+                PDImageXObject pdImage = LosslessFactory.createFromImage(outputDoc, bitmap);
+                bitmap.recycle();
+
+                PDPageContentStream contentStream = new PDPageContentStream(outputDoc, pdPage);
+                contentStream.drawImage(pdImage, 0, 0, pageWidth, pageHeight);
+                contentStream.close();
             }
+
+            outputDoc.save(outputFile);
 
             long newSize = outputFile.length();
             float reduction = (1 - (float) newSize / originalSize) * 100;
@@ -276,13 +282,14 @@ public class PdfTools {
 
         } catch (OutOfMemoryError e) {
             AppLogger.e(TAG, "Out of memory during compression", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Out of memory - PDF too large to compress");
         } catch (Exception e) {
             AppLogger.e(TAG, "Compress PDF failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
         } finally {
+            if (outputDoc != null) try { outputDoc.close(); } catch (Exception ignored) {}
             ResourceManager.closeQuietly(renderer);
             ResourceManager.closeQuietly(fd);
         }
@@ -291,7 +298,8 @@ public class PdfTools {
     // ==================== ADD PAGE NUMBERS ====================
 
     /**
-     * Add page numbers to PDF
+     * Add page numbers to PDF using PDFBox-Android.
+     * OpenPDF's PdfStamper text methods trigger java.awt.font.GlyphVector crash.
      */
     public static PdfResult addPageNumbers(String pdfPath, File outputDir, String outputName,
                                             String position, int startNumber) {
@@ -299,73 +307,80 @@ public class PdfTools {
 
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
-        File tempFile = new File(outputDir, fileName + ".tmp");
+
+        PDDocument document = null;
 
         try {
-            // Copy original first
-            copyFile(new File(pdfPath), tempFile);
+            document = PDDocument.load(new File(pdfPath));
+            int pageCount = document.getNumberOfPages();
+            PDType1Font font = PDType1Font.HELVETICA;
+            float fontSize = 11;
 
-            try (PdfReader reader = new PdfReader(tempFile);
-                 PdfWriter writer = new PdfWriter(outputFile);
-                 PdfDocument doc = new PdfDocument(reader, writer)) {
+            for (int i = 0; i < pageCount; i++) {
+                PDPage page = document.getPage(i);
+                PDRectangle pageSize = page.getMediaBox();
+                float pageWidth = pageSize.getWidth();
+                float pageHeight = pageSize.getHeight();
 
-                PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
-                int pageCount = doc.getNumberOfPages();
+                String pageNum = String.valueOf(startNumber + i);
+                float textWidth = font.getStringWidth(pageNum) / 1000 * fontSize;
 
-                for (int i = 1; i <= pageCount; i++) {
-                    PdfPage page = doc.getPage(i);
-                    Rectangle pageSize = page.getPageSize();
-                    PdfCanvas canvas = new PdfCanvas(page);
-
-                    String pageNum = String.valueOf(startNumber + i - 1);
-
-                    float x, y;
-                    switch (position.toLowerCase()) {
-                        case "top-left":
-                            x = 40; y = pageSize.getHeight() - 30;
-                            break;
-                        case "top-center":
-                            x = pageSize.getWidth() / 2; y = pageSize.getHeight() - 30;
-                            break;
-                        case "top-right":
-                            x = pageSize.getWidth() - 40; y = pageSize.getHeight() - 30;
-                            break;
-                        case "bottom-left":
-                            x = 40; y = 30;
-                            break;
-                        case "bottom-right":
-                            x = pageSize.getWidth() - 40; y = 30;
-                            break;
-                        default: // bottom-center
-                            x = pageSize.getWidth() / 2; y = 30;
-                            break;
-                    }
-
-                    canvas.beginText();
-                    canvas.setFontAndSize(font, 11);
-                    canvas.setFillColor(ColorConstants.BLACK);
-                    canvas.moveText(x, y);
-                    canvas.showText(pageNum);
-                    canvas.endText();
+                float x, y;
+                switch (position.toLowerCase()) {
+                    case "top-left":
+                        x = 40; y = pageHeight - 30;
+                        break;
+                    case "top-center":
+                        x = (pageWidth - textWidth) / 2; y = pageHeight - 30;
+                        break;
+                    case "top-right":
+                        x = pageWidth - 40 - textWidth; y = pageHeight - 30;
+                        break;
+                    case "bottom-left":
+                        x = 40; y = 30;
+                        break;
+                    case "bottom-right":
+                        x = pageWidth - 40 - textWidth; y = 30;
+                        break;
+                    default: // bottom-center
+                        x = (pageWidth - textWidth) / 2; y = 30;
+                        break;
                 }
 
-                return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
-                        "Added page numbers to " + pageCount + " pages");
+                // Use APPEND mode to add content on top of existing page
+                PDPageContentStream contentStream = new PDPageContentStream(
+                        document, page, PDPageContentStream.AppendMode.APPEND, true, true);
+
+                contentStream.beginText();
+                contentStream.setFont(font, fontSize);
+                contentStream.setNonStrokingColor(0, 0, 0); // Black
+                contentStream.newLineAtOffset(x, y);
+                contentStream.showText(pageNum);
+                contentStream.endText();
+                contentStream.close();
             }
+
+            document.save(outputFile);
+
+            return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
+                    "Added page numbers to " + pageCount + " pages");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Add page numbers failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
         } finally {
-            tempFile.delete();
+            if (document != null) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
     // ==================== PDF TO IMAGES ====================
 
     /**
-     * Convert PDF pages to images
+     * Convert PDF pages to images.
+     * Uses ResourceManager.getPageSize() to avoid java.awt.Color crash.
      */
     public static PdfResult pdfToImages(Context context, String pdfPath, File outputDir,
                                          String format, int dpi) {
@@ -383,49 +398,46 @@ public class PdfTools {
             renderer = new PdfRenderer(fd);
             int pageCount = renderer.getPageCount();
 
-            try (PdfReader reader = new PdfReader(pdfPath);
-                 PdfDocument doc = new PdfDocument(reader)) {
+            for (int i = 0; i < pageCount; i++) {
+                // Use ResourceManager to get page size (avoids java.awt.Color crash)
+                float[] pageDims = ResourceManager.getPageSize(pdfPath, i + 1);
+                float pageWidth = pageDims[0];
+                float pageHeight = pageDims[1];
 
-                for (int i = 0; i < pageCount; i++) {
-                    PdfPage page = doc.getPage(i + 1);
-                    float pageWidth = page.getPageSize().getWidth();
-                    float pageHeight = page.getPageSize().getHeight();
+                PdfRenderer.Page renderPage = renderer.openPage(i);
 
-                    PdfRenderer.Page renderPage = renderer.openPage(i);
+                float scale = dpi / 72f;
+                int bitmapWidth = (int) (pageWidth * scale);
+                int bitmapHeight = (int) (pageHeight * scale);
 
-                    float scale = dpi / 72f;
-                    int bitmapWidth = (int) (pageWidth * scale);
-                    int bitmapHeight = (int) (pageHeight * scale);
-
-                    // Limit size
-                    int maxSize = 4096;
-                    if (bitmapWidth > maxSize || bitmapHeight > maxSize) {
-                        float reduceScale = Math.min((float) maxSize / bitmapWidth, (float) maxSize / bitmapHeight);
-                        bitmapWidth = (int) (bitmapWidth * reduceScale);
-                        bitmapHeight = (int) (bitmapHeight * reduceScale);
-                    }
-
-                    Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
-                    bitmap.eraseColor(Color.WHITE);
-                    renderPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                    renderPage.close();
-
-                    // Save image
-                    String ext = format.equalsIgnoreCase("png") ? ".png" : ".jpg";
-                    String imageFileName = baseName + "_page_" + (i + 1) + ext;
-                    File imageFile = new File(outputDir, imageFileName);
-
-                    try (FileOutputStream fos = new FileOutputStream(imageFile)) {
-                        if (format.equalsIgnoreCase("png")) {
-                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                        } else {
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-                        }
-                    }
-                    bitmap.recycle();
-
-                    outputFiles.add(imageFile.getAbsolutePath());
+                // Limit size
+                int maxSize = 4096;
+                if (bitmapWidth > maxSize || bitmapHeight > maxSize) {
+                    float reduceScale = Math.min((float) maxSize / bitmapWidth, (float) maxSize / bitmapHeight);
+                    bitmapWidth = (int) (bitmapWidth * reduceScale);
+                    bitmapHeight = (int) (bitmapHeight * reduceScale);
                 }
+
+                Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(Color.WHITE);
+                renderPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                renderPage.close();
+
+                // Save image
+                String ext = format.equalsIgnoreCase("png") ? ".png" : ".jpg";
+                String imageFileName = baseName + "_page_" + (i + 1) + ext;
+                File imageFile = new File(outputDir, imageFileName);
+
+                try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+                    if (format.equalsIgnoreCase("png")) {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    } else {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                    }
+                }
+                bitmap.recycle();
+
+                outputFiles.add(imageFile.getAbsolutePath());
             }
 
             return new PdfResult(true, outputDir.getAbsolutePath(), baseName + "_images",
@@ -433,7 +445,6 @@ public class PdfTools {
 
         } catch (Exception e) {
             AppLogger.e(TAG, "PDF to images failed", e);
-            // Clean up partial files
             for (String path : outputFiles) {
                 new File(path).delete();
             }
@@ -447,7 +458,8 @@ public class PdfTools {
     // ==================== ADD WATERMARK ====================
 
     /**
-     * Add text watermark to PDF
+     * Add text watermark to PDF using PDFBox-Android.
+     * OpenPDF's PdfStamper text methods trigger java.awt.font.GlyphVector crash.
      */
     public static PdfResult addWatermark(String pdfPath, File outputDir, String outputName,
                                           String watermarkText, float opacity, float fontSize,
@@ -457,72 +469,80 @@ public class PdfTools {
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputFile);
-             PdfDocument doc = new PdfDocument(reader, writer)) {
+        PDDocument document = null;
 
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
-            int pageCount = doc.getNumberOfPages();
+        try {
+            document = PDDocument.load(new File(pdfPath));
+            int pageCount = document.getNumberOfPages();
+            PDType1Font font = PDType1Font.HELVETICA_BOLD;
 
-            // Extract RGB from color
-            int r = (color >> 16) & 0xFF;
-            int g = (color >> 8) & 0xFF;
-            int b = color & 0xFF;
+            // Extract RGB from color (0-255 range to 0-1 range for PDFBox)
+            float r = ((color >> 16) & 0xFF) / 255f;
+            float g = ((color >> 8) & 0xFF) / 255f;
+            float b = (color & 0xFF) / 255f;
 
-            for (int i = 1; i <= pageCount; i++) {
-                PdfPage page = doc.getPage(i);
-                Rectangle pageSize = page.getPageSize();
-
-                // Create canvas on top of existing content
-                PdfCanvas canvas = new PdfCanvas(page.newContentStreamAfter(), page.getResources(), doc);
-
-                canvas.saveState();
-
-                // Set transparency
-                PdfExtGState gs = new PdfExtGState();
-                gs.setFillOpacity(opacity);
-                canvas.setExtGState(gs);
-
-                // Calculate center position
-                float centerX = pageSize.getWidth() / 2;
-                float centerY = pageSize.getHeight() / 2;
+            for (int i = 0; i < pageCount; i++) {
+                PDPage page = document.getPage(i);
+                PDRectangle pageSize = page.getMediaBox();
+                float pageWidth = pageSize.getWidth();
+                float pageHeight = pageSize.getHeight();
 
                 // Calculate text width for centering
-                float textWidth = font.getWidth(watermarkText, fontSize);
+                float textWidth = font.getStringWidth(watermarkText) / 1000 * fontSize;
+                float centerX = pageWidth / 2;
+                float centerY = pageHeight / 2;
 
-                // Apply rotation transformation around center
+                // Use APPEND mode to add content on top of existing page
+                PDPageContentStream contentStream = new PDPageContentStream(
+                        document, page, PDPageContentStream.AppendMode.APPEND, true, true);
+
+                // Set transparency
+                PDExtendedGraphicsState graphicsState = new PDExtendedGraphicsState();
+                graphicsState.setNonStrokingAlphaConstant(opacity);
+                contentStream.setGraphicsStateParameters(graphicsState);
+
+                contentStream.beginText();
+                contentStream.setFont(font, fontSize);
+                contentStream.setNonStrokingColor(r, g, b);
+
+                // Apply rotation using transformation matrix
+                // Move to center, rotate, then offset by half text width
                 double radians = Math.toRadians(rotation);
                 float cos = (float) Math.cos(radians);
                 float sin = (float) Math.sin(radians);
 
-                // Transform: translate to center, rotate
-                canvas.concatMatrix(cos, sin, -sin, cos, centerX, centerY);
-
-                // Draw text centered at origin (which is now at page center)
-                canvas.beginText();
-                canvas.setFontAndSize(font, fontSize);
-                canvas.setFillColor(new DeviceRgb(r, g, b));
-                canvas.moveText(-textWidth / 2, -fontSize / 3);
-                canvas.showText(watermarkText);
-                canvas.endText();
-
-                canvas.restoreState();
+                Matrix textMatrix = new Matrix(
+                        cos, sin, -sin, cos,
+                        centerX - (textWidth / 2) * cos,
+                        centerY - (textWidth / 2) * sin
+                );
+                contentStream.setTextMatrix(textMatrix);
+                contentStream.showText(watermarkText);
+                contentStream.endText();
+                contentStream.close();
             }
+
+            document.save(outputFile);
 
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Added watermark to " + pageCount + " pages");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Add watermark failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            if (document != null) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
     // ==================== DELETE PAGES ====================
 
     /**
-     * Delete specific pages from PDF
+     * Delete specific pages from PDF using PDFBox-Android.
+     * Avoids Document, Rectangle, PdfCopy which trigger java.awt.Color crash.
      */
     public static PdfResult deletePages(String pdfPath, File outputDir, String outputName,
                                          List<Integer> pagesToDelete) {
@@ -531,36 +551,46 @@ public class PdfTools {
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
 
-        try (PdfReader srcReader = new PdfReader(pdfPath);
-             PdfDocument sourceDoc = new PdfDocument(srcReader);
-             PdfWriter writer = new PdfWriter(outputFile);
-             PdfDocument newDoc = new PdfDocument(writer)) {
+        PDDocument document = null;
 
-            int originalCount = sourceDoc.getNumberOfPages();
+        try {
+            document = PDDocument.load(new File(pdfPath));
+            int originalCount = document.getNumberOfPages();
+
+            // Sort page numbers in descending order to avoid index shifting
+            List<Integer> sortedPages = new ArrayList<>(pagesToDelete);
+            sortedPages.sort((a, b) -> b - a);
+
             int deletedCount = 0;
-
-            for (int i = 1; i <= originalCount; i++) {
-                if (!pagesToDelete.contains(i)) {
-                    sourceDoc.copyPagesTo(i, i, newDoc);
-                } else {
+            for (int pageNum : sortedPages) {
+                // PDFBox uses 0-based index
+                int pageIndex = pageNum - 1;
+                if (pageIndex >= 0 && pageIndex < document.getNumberOfPages()) {
+                    document.removePage(pageIndex);
                     deletedCount++;
                 }
             }
 
-            int remainingPages = newDoc.getNumberOfPages();
+            int remainingPages = document.getNumberOfPages();
 
             if (remainingPages == 0) {
-                // Will be deleted in finally or after close
+                document.close();
                 return new PdfResult(false, null, null, "Cannot delete all pages");
             }
+
+            document.save(outputFile);
 
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Deleted " + deletedCount + " page(s), " + remainingPages + " remaining");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Delete pages failed", e);
-            outputFile.delete();
+            if (outputFile.exists()) outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            if (document != null) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -578,12 +608,12 @@ public class PdfTools {
         try {
             copyFile(new File(pdfPath), outputFile);
 
-            try (PdfReader reader = new PdfReader(outputFile);
-                 PdfDocument doc = new PdfDocument(reader)) {
-                int pageCount = doc.getNumberOfPages();
-                return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
-                        "Created copy with " + pageCount + " pages");
-            }
+            PdfReader reader = new PdfReader(outputFile.getAbsolutePath());
+            int pageCount = reader.getNumberOfPages();
+            reader.close();
+
+            return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
+                    "Created copy with " + pageCount + " pages");
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Copy PDF failed", e);
@@ -604,19 +634,24 @@ public class PdfTools {
         String fileName = outputName.endsWith(".pdf") ? outputName : outputName + ".pdf";
         File outputFile = new File(outputDir, fileName);
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputFile);
-             PdfDocument doc = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputFile));
 
             int rotatedCount = 0;
             for (int pageNum : pagesToRotate) {
-                if (pageNum >= 1 && pageNum <= doc.getNumberOfPages()) {
-                    PdfPage page = doc.getPage(pageNum);
-                    int currentRotation = page.getRotation();
-                    page.setRotation((currentRotation + degrees) % 360);
+                if (pageNum >= 1 && pageNum <= reader.getNumberOfPages()) {
+                    int currentRotation = reader.getPageRotation(pageNum);
+                    reader.getPageN(pageNum).put(PdfName.ROTATE, new PdfNumber((currentRotation + degrees) % 360));
                     rotatedCount++;
                 }
             }
+
+            stamper.close();
+            reader.close();
 
             return new PdfResult(true, outputFile.getAbsolutePath(), fileName,
                     "Rotated " + rotatedCount + " page(s) by " + degrees + " degrees");
@@ -625,28 +660,32 @@ public class PdfTools {
             AppLogger.e(TAG, "Rotate pages failed", e);
             outputFile.delete();
             return new PdfResult(false, null, null, "Error: " + e.getMessage());
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
     }
 
     // ==================== GET PDF INFO ====================
 
     /**
-     * Get information about a PDF
+     * Get information about a PDF.
+     * Uses ResourceManager to avoid java.awt.Color crash.
      */
     public static String getPdfInfo(String pdfPath) {
         File file = new File(pdfPath);
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-
-            int pageCount = doc.getNumberOfPages();
-            PdfPage firstPage = doc.getPage(1);
-            Rectangle size = firstPage.getPageSize();
+        try {
+            // Use ResourceManager to get page count and size (avoids java.awt.Color crash)
+            int pageCount = ResourceManager.getPageCount(pdfPath);
+            float[] pageDims = ResourceManager.getPageSize(pdfPath, 1);
 
             return "File: " + file.getName() + "\n" +
                     "Size: " + formatFileSize(file.length()) + "\n" +
                     "Pages: " + pageCount + "\n" +
-                    "Page Size: " + String.format("%.0f x %.0f pts", size.getWidth(), size.getHeight());
+                    "Page Size: " + String.format("%.0f x %.0f pts", pageDims[0], pageDims[1]);
 
         } catch (Exception e) {
             AppLogger.e(TAG, "Get PDF info failed", e);
@@ -658,12 +697,15 @@ public class PdfTools {
      * Get page count of PDF
      */
     public static int getPageCount(String pdfPath) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-            return doc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            return reader.getNumberOfPages();
         } catch (Exception e) {
             AppLogger.e(TAG, "Get page count failed", e);
             return 0;
+        } finally {
+            if (reader != null) reader.close();
         }
     }
 

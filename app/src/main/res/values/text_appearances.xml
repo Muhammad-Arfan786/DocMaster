@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Headlines -->
+    <style name="TextAppearance.TenDocmas.Headline" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?android:textColorPrimary</item>
+    </style>
+
+    <!-- Section Headers -->
+    <style name="TextAppearance.TenDocmas.SectionHeader" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">@dimen/section_header_text</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?android:textColorPrimary</item>
+    </style>
+
+    <!-- Body Text -->
+    <style name="TextAppearance.TenDocmas.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">?android:textColorPrimary</item>
+    </style>
+
+    <!-- Subtitles/Labels -->
+    <style name="TextAppearance.TenDocmas.Subtitle" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+    </style>
+
+    <!-- Tool Labels (small) -->
+    <style name="TextAppearance.TenDocmas.ToolLabel" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">@dimen/tool_text_size</item>
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- Caption/Secondary -->
+    <style name="TextAppearance.TenDocmas.Caption" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+    </style>
+
+    <!-- Empty State Title -->
+    <style name="TextAppearance.TenDocmas.EmptyTitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textSize">@dimen/empty_title_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+    </style>
+
+    <!-- Empty State Subtitle -->
+    <style name="TextAppearance.TenDocmas.EmptySubtitle" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">@dimen/empty_subtitle_size</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <!-- Toolbar Title -->
+    <style name="TextAppearance.TenDocmas.ToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
+    <!-- Recent File Name -->
+    <style name="TextAppearance.TenDocmas.FileName" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <!-- Recent File Path -->
+    <style name="TextAppearance.TenDocmas.FilePath" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">middle</item>
+    </style>
+
+    <!-- Recent File Date -->
+    <style name="TextAppearance.TenDocmas.FileDate" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">?android:textColorSecondary</item>
+    </style>
+</resources>

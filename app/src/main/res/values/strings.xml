@@ -40,9 +40,316 @@
     <string name="about_version">Version 1.0</string>
     <string name="about_description">Your complete PDF toolkit - edit, merge, split, convert and more!\n\nSupported formats: PDF, DOC, DOCX</string>
 
+    <!-- Privacy Policy -->
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="privacy_policy_title">Privacy Policy</string>
+    <string name="privacy_last_updated">Last Updated: January 2026</string>
+
+    <string name="privacy_section_1_title">1. Information We Collect</string>
+    <string name="privacy_section_1_content">TenDocmas is designed with your privacy in mind. We collect minimal information:\n\n• Recent Files: File names and paths of recently opened documents are stored locally on your device for convenience.\n\n• App Preferences: Settings like theme preferences and view options are stored locally on your device.</string>
+
+    <string name="privacy_section_2_title">2. Data Storage</string>
+    <string name="privacy_section_2_content">All data is stored locally on your device. We do NOT:\n\n• Upload or transmit any files to external servers\n• Collect personal information or user data\n• Use analytics, tracking, or advertising services\n• Access your files without your explicit action\n• Store any data in the cloud</string>
+
+    <string name="privacy_section_3_title">3. App Permissions</string>
+    <string name="privacy_section_3_content">The app requests the following permissions:\n\n• Storage Access: Required to open, edit, and save PDF and Word documents on your device.\n\n• Media Access (Android 13+): Required to access images for PDF operations like adding pictures to documents.</string>
+
+    <string name="privacy_section_4_title">4. Your Rights</string>
+    <string name="privacy_section_4_content">You have full control over your data:\n\n• Clear your recent files history at any time from within the app\n• Revoke storage permissions in your device settings\n• Uninstall the app to remove all locally stored app data\n• All document processing happens on your device only</string>
+
+    <string name="privacy_section_5_title">5. Third-Party Libraries</string>
+    <string name="privacy_section_5_content">We use the following open-source libraries for document processing:\n\n• OpenPDF (LGPL License) - For PDF manipulation\n• Apache POI - For Word document support\n\nThese libraries operate entirely on your device and do not transmit any data externally.</string>
+
+    <string name="privacy_section_6_title">6. Children\'s Privacy</string>
+    <string name="privacy_section_6_content">Our app does not knowingly collect any information from children under the age of 13. The app does not require account creation or collect any personal data from any users.</string>
+
+    <string name="privacy_section_7_title">7. Changes &amp; Contact</string>
+    <string name="privacy_section_7_content">We may update this privacy policy from time to time. Any changes will be reflected in app updates with a new \"Last Updated\" date.\n\nFor questions about this privacy policy, please contact us through the Google Play Store listing or leave a review with your inquiry.</string>
+
     <!-- Errors -->
     <string name="error_file_not_found">File not found</string>
     <string name="error_permission_denied">Permission denied</string>
     <string name="error_unsupported_format">Unsupported file format</string>
     <string name="permission_required">Storage permission is required to open files</string>
+
+    <!-- ============================================ -->
+    <!-- ACCESSIBILITY: Content Descriptions         -->
+    <!-- ============================================ -->
+
+    <!-- Toolbar Navigation -->
+    <string name="cd_navigate_back">Navigate back</string>
+    <string name="cd_toolbar_menu">More options</string>
+
+    <!-- PDF Viewer Edit Toolbar Tools -->
+    <string name="cd_tool_pen">Pen drawing tool</string>
+    <string name="cd_tool_highlighter">Highlighter tool</string>
+    <string name="cd_tool_text">Add text tool</string>
+    <string name="cd_tool_eraser">Eraser tool</string>
+    <string name="cd_tool_undo">Undo last action</string>
+    <string name="cd_tool_redo">Redo last action</string>
+    <string name="cd_tool_clear">Clear all drawings</string>
+
+    <!-- Color Selection Buttons -->
+    <string name="cd_color_red">Select red color</string>
+    <string name="cd_color_blue">Select blue color</string>
+    <string name="cd_color_green">Select green color</string>
+    <string name="cd_color_yellow">Select yellow color</string>
+    <string name="cd_color_selected">%1$s color, selected</string>
+    <string name="color_red">Red</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_green">Green</string>
+    <string name="color_yellow">Yellow</string>
+
+    <!-- Zoom Controls -->
+    <string name="cd_zoom_in">Zoom in</string>
+    <string name="cd_zoom_out">Zoom out</string>
+    <string name="cd_zoom_level">Current zoom level: %1$d percent</string>
+
+    <!-- Page Navigation -->
+    <string name="cd_page_previous">Go to previous page</string>
+    <string name="cd_page_next">Go to next page</string>
+    <string name="cd_page_info">Page %1$d of %2$d</string>
+
+    <!-- FABs -->
+    <string name="cd_save_edit">Save edits</string>
+    <string name="cd_open_file">Open a document file</string>
+
+    <!-- Main Activity Tool Icons -->
+    <string name="cd_tool_merge_pdf">Merge multiple PDF files</string>
+    <string name="cd_tool_split_pdf">Split PDF into separate files</string>
+    <string name="cd_tool_pdf_to_image">Convert PDF to images</string>
+    <string name="cd_tool_rotate_pdf">Rotate PDF pages</string>
+    <string name="cd_tool_delete_pages">Delete pages from PDF</string>
+    <string name="cd_tool_extract_pages">Extract pages from PDF</string>
+    <string name="cd_tool_edit_pdf">Edit PDF content</string>
+    <string name="cd_tool_watermark">Add watermark to PDF</string>
+    <string name="cd_tool_page_numbers">Add page numbers to PDF</string>
+    <string name="cd_tool_copy_pdf">Make a copy of PDF</string>
+
+    <!-- Recent Files List -->
+    <string name="cd_file_icon_pdf">PDF document</string>
+    <string name="cd_file_icon_doc">Word document</string>
+    <string name="cd_remove_recent_file">Remove %1$s from recent files</string>
+
+    <!-- Doc Viewer -->
+    <string name="cd_font_smaller">Decrease font size</string>
+    <string name="cd_font_larger">Increase font size</string>
+
+    <!-- Bottom Sheet PDF Editor -->
+    <string name="cd_delete_page">Delete current page</string>
+    <string name="cd_rotate_page">Rotate current page</string>
+    <string name="cd_duplicate_page">Duplicate current page</string>
+    <string name="cd_extract_page">Extract current page</string>
+    <string name="cd_add_blank_page">Add blank page</string>
+    <string name="cd_reorder_pages">Reorder pages</string>
+    <string name="cd_split_pdf">Split PDF</string>
+    <string name="cd_add_image">Add image to PDF</string>
+    <string name="cd_add_signature">Add signature</string>
+    <string name="cd_add_watermark">Add watermark</string>
+    <string name="cd_merge_pdfs">Merge PDFs</string>
+
+    <!-- ============================================ -->
+    <!-- TOAST/FEEDBACK MESSAGES                     -->
+    <!-- ============================================ -->
+
+    <!-- File Operations -->
+    <string name="msg_select_pdf_merge">Select PDF files to merge</string>
+    <string name="msg_select_pdf_split">Select a PDF file to split</string>
+    <string name="msg_select_pdf_convert">Select a PDF file to convert to images</string>
+    <string name="msg_select_pdf_watermark">Select a PDF file to add watermark</string>
+    <string name="msg_select_pdf_page_numbers">Select a PDF file to add page numbers</string>
+    <string name="msg_select_pdf_delete">Select a PDF file to delete pages</string>
+    <string name="msg_select_pdf_rotate">Select a PDF file to rotate pages</string>
+    <string name="msg_select_pdf_copy">Select a PDF file to copy</string>
+    <string name="msg_select_pdf_edit">Select a PDF file to edit</string>
+    <string name="msg_select_pdf_extract">Select a PDF file to extract pages</string>
+    <string name="msg_select_min_two_files">Please select at least 2 PDF files to merge</string>
+    <string name="msg_failed_process_files">Failed to process files</string>
+
+    <!-- Success Messages -->
+    <string name="msg_document_saved">Document saved successfully</string>
+    <string name="msg_page_deleted">Page deleted</string>
+    <string name="msg_page_rotated">Page rotated</string>
+    <string name="msg_page_duplicated">Page duplicated</string>
+    <string name="msg_blank_page_added">Blank page added</string>
+    <string name="msg_pages_reordered">Pages reordered</string>
+    <string name="msg_image_added_page">Image added as new page</string>
+    <string name="msg_image_added_to_page">Image added to page</string>
+    <string name="msg_text_added">Text added</string>
+    <string name="msg_note_added">Note added</string>
+    <string name="msg_edit_mode_enabled">Edit mode enabled</string>
+    <string name="msg_edit_mode_closed">Edit mode closed</string>
+    <string name="msg_visual_edit_closed">Visual edit mode closed</string>
+    <string name="msg_pdf_saved_original">PDF saved to original file!</string>
+    <string name="msg_saved_to_original">Saved to original PDF!</string>
+    <string name="msg_original_pdf_updated">Original PDF updated!</string>
+    <string name="msg_text_updated">Text updated</string>
+    <string name="msg_reverted_original">Reverted to original</string>
+    <string name="msg_saved_as">Saved as: %1$s</string>
+    <string name="msg_saved_to">Saved to: %1$s</string>
+    <string name="msg_files_saved_to">Files saved to: %1$s</string>
+    <string name="msg_opened_file">Opened: %1$s</string>
+    <string name="msg_merged_success">PDFs merged successfully</string>
+    <string name="msg_split_success">PDF split successfully</string>
+    <string name="msg_watermark_added">Watermark added</string>
+    <string name="msg_page_numbers_added">Page numbers added</string>
+    <string name="msg_pdf_copied">PDF copied</string>
+    <string name="msg_pages_extracted">Pages extracted</string>
+    <string name="msg_converted_to_images">Converted to images</string>
+
+    <!-- Error Messages -->
+    <string name="msg_error_saving">Error saving: %1$s</string>
+    <string name="msg_error_saving_pdf">Error saving PDF: %1$s</string>
+    <string name="msg_error_creating_pdf">Error creating PDF: %1$s</string>
+    <string name="msg_error_loading_pdf">Error loading PDF: %1$s</string>
+    <string name="msg_error_reloading_pdf">Error reloading PDF: %1$s</string>
+    <string name="msg_error_sharing_file">Error sharing file</string>
+    <string name="msg_error_extracting_text">Error extracting text: %1$s</string>
+    <string name="msg_error_reading_page">Error reading page dimensions</string>
+    <string name="msg_error_generic">Error: %1$s</string>
+    <string name="msg_error_saving_downloads">Error saving to Downloads</string>
+    <string name="msg_merge_error">Merge error: %1$s</string>
+    <string name="msg_conversion_failed">Conversion failed: %1$s</string>
+
+    <!-- Validation Messages -->
+    <string name="msg_cannot_delete_only_page">Cannot delete the only page</string>
+    <string name="msg_cannot_delete_all_pages">Cannot delete all pages</string>
+    <string name="msg_invalid_page_spec">Invalid page specification</string>
+    <string name="msg_invalid_page_numbers">Invalid page numbers</string>
+    <string name="msg_invalid_page_order">Invalid page order</string>
+    <string name="msg_invalid_input">Invalid input</string>
+    <string name="msg_please_enter_text">Please enter text</string>
+    <string name="msg_please_enter_note">Please enter note text</string>
+    <string name="msg_please_enter_valid_numbers">Please enter valid numbers</string>
+    <string name="msg_no_file_to_save">No file to save</string>
+    <string name="msg_no_edits_to_save">No edits to save</string>
+    <string name="msg_no_changes_made">No changes made</string>
+    <string name="msg_no_pdf_viewer_available">No PDF viewer available</string>
+    <string name="msg_no_original_pdf">No original PDF to save to</string>
+    <string name="msg_no_text_found">No text found on this page</string>
+    <string name="msg_no_text_blocks_found">No text blocks found</string>
+    <string name="msg_nothing_to_undo">Nothing to undo</string>
+
+    <!-- Action Feedback -->
+    <string name="msg_converting_to_images">Converting to images…</string>
+    <string name="msg_draw_signature">Draw your signature using the Pen tool</string>
+    <string name="msg_tap_edit_instructions">Tap \'Edit\' to start editing, then \'Save PDF\' when done</string>
+    <string name="msg_tap_page_to_edit">Tap on the page where you want to edit text</string>
+    <string name="msg_edit_added_tap_save">Edit added! Tap another area or tap \'Edit Text\' to save.</string>
+    <string name="msg_color_selected">%1$s selected</string>
+    <string name="msg_undo_drawing_removed">Undo: Drawing removed</string>
+    <string name="msg_undo_edit_removed">Undo: Edit removed</string>
+    <string name="msg_permission_required_save">Permission required to save PDF</string>
+
+    <!-- Dialog Related -->
+    <string name="msg_confirm_clear_recent">Are you sure you want to clear all recent files?</string>
+    <string name="msg_tap_button_open">Tap the + button to open a document</string>
+    <string name="msg_unsaved_changes">You have unsaved changes. Do you want to save before closing?</string>
+
+    <!-- ============================================ -->
+    <!-- ACCESSIBILITY ANNOUNCEMENTS                 -->
+    <!-- ============================================ -->
+
+    <string name="announce_edit_mode_entered">Entered edit mode. Use toolbar to draw or add text.</string>
+    <string name="announce_edit_mode_exited">Exited edit mode</string>
+    <string name="announce_page_changed">Now viewing page %1$d of %2$d</string>
+    <string name="announce_zoom_changed">Zoom level changed to %1$d percent</string>
+    <string name="announce_tool_selected">%1$s tool selected</string>
+    <string name="announce_color_selected">%1$s color selected</string>
+    <string name="announce_file_loaded">Document loaded: %1$s</string>
+    <string name="announce_operation_complete">%1$s complete</string>
+    <string name="announce_loading">Loading document</string>
+    <string name="announce_saving">Saving document</string>
+
+    <!-- ============================================ -->
+    <!-- MENU ITEM TITLES                            -->
+    <!-- ============================================ -->
+
+    <string name="menu_undo">Undo</string>
+    <string name="menu_redo">Redo</string>
+    <string name="menu_save">Save</string>
+    <string name="menu_draw_annotate">Draw and annotate</string>
+    <string name="menu_edit_pdf">Edit PDF</string>
+    <string name="menu_pdf_tools">PDF Tools</string>
+    <string name="menu_edit_copy">Edit Copy (Like Word)</string>
+    <string name="menu_merge_pdfs">Merge PDFs</string>
+    <string name="menu_split_pdf">Split PDF</string>
+    <string name="menu_add_page_numbers">Add Page Numbers</string>
+    <string name="menu_pdf_to_images">PDF to Images (JPG/PNG)</string>
+    <string name="menu_add_watermark">Add Watermark</string>
+    <string name="menu_delete_pages">Delete Pages</string>
+    <string name="menu_rotate_pages">Rotate Pages</string>
+    <string name="menu_copy_pdf">Copy PDF</string>
+    <string name="menu_pdf_info">PDF Info</string>
+    <string name="menu_visual_edit">Visual Edit (Tap Text)</string>
+    <string name="menu_edit_text_area">Edit Text (Area)</string>
+    <string name="menu_add_note">Add Note</string>
+    <string name="menu_save_as_word">Save As Word…</string>
+    <string name="menu_save_as_pdf">Save As New PDF</string>
+    <string name="menu_save_to_original">Save to Original PDF</string>
+
+    <!-- ============================================ -->
+    <!-- DIALOG TITLES AND LABELS                    -->
+    <!-- ============================================ -->
+
+    <string name="dialog_delete_page_title">Delete Page</string>
+    <string name="dialog_delete_page_message">Are you sure you want to delete this page?</string>
+    <string name="dialog_rotate_title">Rotate Page</string>
+    <string name="dialog_extract_title">Extract Pages</string>
+    <string name="dialog_extract_hint">Enter page numbers (e.g., 1,3,5 or 1–3)</string>
+    <string name="dialog_reorder_title">Reorder Pages</string>
+    <string name="dialog_reorder_hint">Enter new page order (e.g., 3,1,2)</string>
+    <string name="dialog_add_blank_title">Add Blank Page</string>
+    <string name="dialog_watermark_title">Add Watermark</string>
+    <string name="dialog_watermark_hint">Enter watermark text</string>
+    <string name="dialog_add_text_title">Add Text</string>
+    <string name="dialog_add_note_title">Add Note</string>
+    <string name="dialog_split_title">Split PDF</string>
+    <string name="dialog_split_hint">Enter page number to split at</string>
+    <string name="dialog_page_numbers_title">Page Number Settings</string>
+    <string name="dialog_save_title">Save Changes?</string>
+
+    <!-- Button Labels -->
+    <string name="remove">Remove</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_delete">Delete</string>
+    <string name="btn_discard">Discard</string>
+    <string name="btn_ok">OK</string>
+    <string name="btn_yes">Yes</string>
+    <string name="btn_no">No</string>
+    <string name="btn_clear">Clear</string>
+    <string name="btn_add">Add</string>
+    <string name="btn_apply">Apply</string>
+
+    <!-- Section Headers -->
+    <string name="section_pdf_tools">PDF Tools</string>
+    <string name="section_recent_files">Recent Files</string>
+    <string name="section_page_operations">Page Operations</string>
+    <string name="section_add_content">Add Content</string>
+
+    <!-- Tool Labels -->
+    <string name="tool_merge">Merge</string>
+    <string name="tool_split">Split</string>
+    <string name="tool_to_image">To Image</string>
+    <string name="tool_rotate">Rotate</string>
+    <string name="tool_delete">Delete</string>
+    <string name="tool_extract">Extract</string>
+    <string name="tool_edit">Edit</string>
+    <string name="tool_watermark">Watermark</string>
+    <string name="tool_numbers">Numbers</string>
+    <string name="tool_copy">Copy</string>
+
+    <!-- Page Operation Labels -->
+    <string name="op_delete_page">Delete</string>
+    <string name="op_rotate_page">Rotate</string>
+    <string name="op_duplicate_page">Duplicate</string>
+    <string name="op_extract_page">Extract</string>
+    <string name="op_add_page">Add Page</string>
+    <string name="op_reorder_pages">Reorder</string>
+    <string name="op_split_pdf">Split</string>
+    <string name="op_add_image">Add Image</string>
+    <string name="op_add_signature">Signature</string>
+    <string name="op_add_watermark">Watermark</string>
+    <string name="op_merge_pdfs">Merge</string>
 </resources>

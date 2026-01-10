@@ -37,6 +37,7 @@ import com.docreader.databinding.BottomSheetPdfEditorBinding;
 import com.docreader.models.Note;
 import com.docreader.utils.AppExecutors;
 import com.docreader.utils.AppLogger;
+import com.docreader.utils.Constants;
 import com.docreader.utils.FileUtils;
 import com.docreader.utils.NotesManager;
 import com.docreader.utils.PreferencesManager;
@@ -53,7 +54,7 @@ import com.docreader.utils.PdfTools;
 import com.docreader.views.DrawingView;
 import com.docreader.views.TextBlockOverlayView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
-import com.itextpdf.kernel.geom.PageSize;
+import com.lowagie.text.PageSize;
 
 import java.io.File;
 import java.io.IOException;
@@ -447,37 +448,60 @@ public class PdfViewerActivity extends AppCompatActivity {
             return;
         }
 
-        PdfRenderer.Page page = pdfRenderer.openPage(pageIndex);
+        // FIX: Use try-finally to ensure page is always closed even on exception
+        PdfRenderer.Page page = null;
+        try {
+            page = pdfRenderer.openPage(pageIndex);
 
-        int baseWidth = getResources().getDisplayMetrics().widthPixels - 32;
-        float aspectRatio = (float) page.getHeight() / page.getWidth();
+            int screenWidth = getResources().getDisplayMetrics().widthPixels - 32;
+            float aspectRatio = (float) page.getHeight() / page.getWidth();
 
-        int width = (int) (baseWidth * currentZoom);
-        int height = (int) (width * aspectRatio);
+            // Calculate display size
+            int displayWidth = (int) (screenWidth * currentZoom);
+            int displayHeight = (int) (displayWidth * aspectRatio);
 
-        int maxSize = 4096;
-        if (width > maxSize) {
-            width = maxSize;
-            height = (int) (width * aspectRatio);
-        }
-        if (height > maxSize) {
-            height = maxSize;
-            width = (int) (height / aspectRatio);
-        }
+            // Quality boost: render at 1.5x for better text clarity (balanced)
+            float qualityBoost = 1.5f;
+            int renderWidth = (int) (displayWidth * qualityBoost);
+            int renderHeight = (int) (renderWidth * aspectRatio);
 
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-        page.close();
+            // Ensure minimum render width for readable text (1200px - balanced)
+            int minRenderWidth = 1200;
+            if (renderWidth < minRenderWidth && currentZoom <= 1.0f) {
+                renderWidth = minRenderWidth;
+                renderHeight = (int) (renderWidth * aspectRatio);
+            }
 
-        if (pageIndex < pageViews.size()) {
-            ImageView imageView = pageViews.get(pageIndex);
-            imageView.setImageBitmap(bitmap);
+            // Cap at 2048 for performance (reduced from 4096)
+            int maxSize = 2048;
+            if (renderWidth > maxSize) {
+                renderWidth = maxSize;
+                renderHeight = (int) (renderWidth * aspectRatio);
+            }
+            if (renderHeight > maxSize) {
+                renderHeight = maxSize;
+                renderWidth = (int) (renderHeight / aspectRatio);
+            }
 
-            // Update ImageView layout to match zoomed size
-            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) imageView.getLayoutParams();
-            params.width = width;
-            params.height = height;
-            imageView.setLayoutParams(params);
+            // Create bitmap and render
+            Bitmap bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888);
+            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+
+            if (pageIndex < pageViews.size()) {
+                ImageView imageView = pageViews.get(pageIndex);
+                imageView.setImageBitmap(bitmap);
+
+                // Update layout
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) imageView.getLayoutParams();
+                params.width = displayWidth;
+                params.height = displayHeight;
+                imageView.setLayoutParams(params);
+            }
+        } finally {
+            // Always close page to prevent resource leak
+            if (page != null) {
+                page.close();
+            }
         }
     }
 
@@ -726,7 +750,7 @@ public class PdfViewerActivity extends AppCompatActivity {
 
         AppExecutors.getInstance().diskIO().execute(() -> {
             try {
-                String newPath = pdfPageManager.addBlankPage(afterPage, PageSize.A4);
+                String newPath = pdfPageManager.addBlankPage(afterPage, Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4);
 
                 runOnUiThread(() -> {
                     binding.progressBar.setVisibility(View.GONE);
@@ -1305,16 +1329,16 @@ public class PdfViewerActivity extends AppCompatActivity {
                 File tempFile = new File(tempPath);
                 File originalFile = new File(filePath);
 
-                // Copy temp file to original location
-                java.io.FileInputStream fis = new java.io.FileInputStream(tempFile);
-                java.io.FileOutputStream fos = new java.io.FileOutputStream(originalFile);
-                byte[] buffer = new byte[8192];
-                int length;
-                while ((length = fis.read(buffer)) > 0) {
-                    fos.write(buffer, 0, length);
+                // CRITICAL FIX: Use try-with-resources to prevent stream leak
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(tempFile);
+                     java.io.FileOutputStream fos = new java.io.FileOutputStream(originalFile)) {
+                    byte[] buffer = new byte[8192];
+                    int length;
+                    while ((length = fis.read(buffer)) > 0) {
+                        fos.write(buffer, 0, length);
+                    }
+                    fos.flush();
                 }
-                fis.close();
-                fos.close();
 
                 // Delete temp file
                 tempFile.delete();
@@ -2670,34 +2694,8 @@ public class PdfViewerActivity extends AppCompatActivity {
 
     // ==================== ACTIVITY CALLBACKS ====================
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (resultCode == RESULT_OK && data != null) {
-            if (requestCode == REQUEST_PICK_IMAGE) {
-                Uri imageUri = data.getData();
-                if (imageUri != null) {
-                    addImageToPdf(imageUri);
-                }
-            } else if (requestCode == REQUEST_PICK_PDF_MERGE) {
-                List<Uri> pdfUris = new ArrayList<>();
-
-                if (data.getClipData() != null) {
-                    int count = data.getClipData().getItemCount();
-                    for (int i = 0; i < count; i++) {
-                        pdfUris.add(data.getClipData().getItemAt(i).getUri());
-                    }
-                } else if (data.getData() != null) {
-                    pdfUris.add(data.getData());
-                }
-
-                if (!pdfUris.isEmpty()) {
-                    mergePdfs(pdfUris);
-                }
-            }
-        }
-    }
+    // Note: onActivityResult removed - using ActivityResultLauncher pattern instead
+    // (pickImageLauncher and pickPdfMergeLauncher handle the callbacks)
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {

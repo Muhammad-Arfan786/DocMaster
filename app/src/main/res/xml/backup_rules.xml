@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Backup rules for Google Play compliance.
+    Backup rules for Google Play compliance (Android 11 and below).
     Only backs up user preferences, not sensitive data.
+    Note: Cache files are not backed up by default.
 -->
 <full-backup-content>
     <!-- Include shared preferences (user settings) -->

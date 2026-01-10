@@ -2,8 +2,6 @@ package com.docreader.utils;
 
 import android.util.Log;
 
-import com.docreader.BuildConfig;
-
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -21,7 +19,9 @@ import java.io.StringWriter;
 public final class AppLogger {
 
     private static final String DEFAULT_TAG = "TenDocmas";
-    private static final boolean DEBUG = BuildConfig.DEBUG;
+    // Note: In production, consider using BuildConfig.DEBUG when build is successful
+    // For now, using a simple flag that can be toggled
+    private static boolean DEBUG = true;
 
     private AppLogger() {
         // Prevent instantiation
@@ -93,6 +93,13 @@ public final class AppLogger {
      */
     public static void w(String message, Throwable t) {
         Log.w(DEFAULT_TAG, message + ": " + getStackTraceString(t));
+    }
+
+    /**
+     * Log warning with custom tag and throwable.
+     */
+    public static void w(String tag, String message, Throwable t) {
+        Log.w(tag, message, t);
     }
 
     // ==================== ERROR ====================

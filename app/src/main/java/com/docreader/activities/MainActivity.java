@@ -1,6 +1,8 @@
 package com.docreader.activities;
 
 import android.Manifest;
+import android.animation.ObjectAnimator;
+import android.app.ActivityOptions;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -9,6 +11,10 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.AnimationUtils;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -18,6 +24,11 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.splashscreen.SplashScreen;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.docreader.R;
@@ -74,9 +85,19 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Install splash screen - MUST be before super.onCreate()
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        // Handle window insets for edge-to-edge
+        setupEdgeToEdge();
 
         prefsManager = new PreferencesManager(this);
 
@@ -87,22 +108,100 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
 
         // Handle intent if opened from file
         handleIntent(getIntent());
+
+        // Run entrance animations after layout
+        binding.getRoot().post(this::runEntranceAnimations);
+    }
+
+    private void setupEdgeToEdge() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+
+            // Apply padding to FAB for navigation bar
+            ViewGroup.MarginLayoutParams fabParams =
+                    (ViewGroup.MarginLayoutParams) binding.fabOpenFile.getLayoutParams();
+            fabParams.rightMargin = insets.right + dpToPx(24);
+            fabParams.bottomMargin = insets.bottom + dpToPx(24);
+            binding.fabOpenFile.setLayoutParams(fabParams);
+
+            return WindowInsetsCompat.CONSUMED;
+        });
+    }
+
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    private void runEntranceAnimations() {
+        // Animate tool grid items
+        animateToolGrid();
+    }
+
+    private void animateToolGrid() {
+        View[] tools = {
+                binding.toolMergePdf, binding.toolSplitPdf,
+                binding.toolPdfToImage, binding.toolWatermark,
+                binding.toolPageNumbers, binding.toolDeletePages,
+                binding.toolRotate, binding.toolCopyPdf,
+                binding.toolEditPdf, binding.toolExtract
+        };
+
+        for (int i = 0; i < tools.length; i++) {
+            View tool = tools[i];
+            if (tool != null) {
+                tool.setAlpha(0f);
+                tool.setTranslationY(30f);
+
+                tool.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(250)
+                        .setStartDelay(i * 40L)
+                        .setInterpolator(new DecelerateInterpolator())
+                        .start();
+            }
+        }
+    }
+
+    private void animateFabEntrance() {
+        binding.fabOpenFile.setScaleX(0f);
+        binding.fabOpenFile.setScaleY(0f);
+        binding.fabOpenFile.setAlpha(0f);
+
+        binding.fabOpenFile.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(300)
+                .setStartDelay(200)
+                .setInterpolator(new OvershootInterpolator(1.2f))
+                .start();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadRecentFiles();
+        // Animate FAB entrance
+        animateFabEntrance();
     }
 
     private void setupToolbar() {
         setSupportActionBar(binding.toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
     }
 
     private void setupRecyclerView() {
         binding.recyclerRecentFiles.setLayoutManager(new LinearLayoutManager(this));
         adapter = new RecentFilesAdapter(prefsManager.getRecentFiles(), this);
         binding.recyclerRecentFiles.setAdapter(adapter);
+
+        // Add layout animation for recent files list
+        binding.recyclerRecentFiles.setLayoutAnimation(
+                AnimationUtils.loadLayoutAnimation(this, R.anim.layout_animation_fall_down)
+        );
 
         binding.btnClearRecent.setOnClickListener(v -> {
             new AlertDialog.Builder(this)
@@ -133,6 +232,8 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
             binding.recyclerRecentFiles.setVisibility(View.VISIBLE);
             binding.emptyState.setVisibility(View.GONE);
             binding.btnClearRecent.setVisibility(View.VISIBLE);
+            // Trigger layout animation
+            binding.recyclerRecentFiles.scheduleLayoutAnimation();
         }
     }
 
@@ -206,7 +307,14 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
         }
         intent.putExtra("file_path", path);
         intent.putExtra("file_name", fileName);
-        startActivity(intent);
+
+        // Use activity transition animation
+        ActivityOptions options = ActivityOptions.makeCustomAnimation(
+                this,
+                R.anim.slide_in_right,
+                R.anim.slide_out_left
+        );
+        startActivity(intent, options.toBundle());
     }
 
     private void handleIntent(Intent intent) {
@@ -263,12 +371,19 @@ public class MainActivity extends AppCompatActivity implements RecentFilesAdapte
                 AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
             }
             return true;
+        } else if (id == R.id.action_privacy_policy) {
+            showPrivacyPolicyDialog();
+            return true;
         } else if (id == R.id.action_about) {
             showAboutDialog();
             return true;
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void showPrivacyPolicyDialog() {
+        startActivity(new Intent(this, PrivacyPolicyActivity.class));
     }
 
     private void showAboutDialog() {

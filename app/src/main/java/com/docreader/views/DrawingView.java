@@ -84,8 +84,19 @@ public class DrawingView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
 
         if (w > 0 && h > 0) {
+            // CRITICAL FIX: Recycle old bitmap before creating new one to prevent memory leak
+            if (canvasBitmap != null && !canvasBitmap.isRecycled()) {
+                canvasBitmap.recycle();
+                canvasBitmap = null;
+            }
+
             canvasBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             drawCanvas = new Canvas(canvasBitmap);
+
+            // Redraw existing paths on new canvas
+            for (DrawingPath dp : paths) {
+                drawCanvas.drawPath(dp.path, dp.paint);
+            }
         }
     }
 
@@ -264,6 +275,30 @@ public class DrawingView extends View {
 
     public int getCurrentColor() {
         return currentColor;
+    }
+
+    /**
+     * Release resources when view is detached.
+     * Called automatically when view is removed from window.
+     */
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        release();
+    }
+
+    /**
+     * Release all bitmap resources to prevent memory leaks.
+     * Call this when done with the drawing view.
+     */
+    public void release() {
+        if (canvasBitmap != null && !canvasBitmap.isRecycled()) {
+            canvasBitmap.recycle();
+            canvasBitmap = null;
+        }
+        drawCanvas = null;
+        paths.clear();
+        undonePaths.clear();
     }
 
     /**

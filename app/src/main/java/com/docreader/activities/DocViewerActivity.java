@@ -39,8 +39,9 @@ import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+
+import com.docreader.utils.AppExecutors;
+import com.docreader.utils.Constants;
 
 /**
  * Activity for viewing and editing DOC and DOCX documents.
@@ -59,8 +60,6 @@ public class DocViewerActivity extends AppCompatActivity {
     private boolean hasChanges = false;
     private boolean isFromPdf = false;  // Flag to track if document came from PDF conversion
     private Menu optionsMenu;
-
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,7 +142,7 @@ public class DocViewerActivity extends AppCompatActivity {
         binding.progressBar.setVisibility(View.VISIBLE);
         binding.tvContent.setVisibility(View.GONE);
 
-        executor.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 File file = new File(filePath);
                 if (!file.exists()) {
@@ -265,7 +264,7 @@ public class DocViewerActivity extends AppCompatActivity {
 
         binding.progressBar.setVisibility(View.VISIBLE);
 
-        executor.execute(() -> {
+        AppExecutors.getInstance().diskIO().execute(() -> {
             try {
                 // If document came from PDF, save back as PDF
                 if (isFromPdf) {
@@ -496,7 +495,7 @@ public class DocViewerActivity extends AppCompatActivity {
                 .setPositiveButton("Save", (dialog, which) -> {
                     String newName = input.getText().toString().trim();
                     if (!newName.isEmpty()) {
-                        executor.execute(() -> {
+                        AppExecutors.getInstance().diskIO().execute(() -> {
                             try {
                                 File newFile = new File(getCacheDir(), newName + ".docx");
 
@@ -542,7 +541,7 @@ public class DocViewerActivity extends AppCompatActivity {
                 .setMessage("This will REPLACE the original PDF file:\n\n" + originalPdfName + "\n\nAre you sure?")
                 .setPositiveButton("Replace", (dialog, which) -> {
                     binding.progressBar.setVisibility(View.VISIBLE);
-                    executor.execute(() -> {
+                    AppExecutors.getInstance().diskIO().execute(() -> {
                         try {
                             // Create temp PDF with matching page structure
                             File tempPdf = WordToPdfConverter.convertToPdfMatchingOriginal(
@@ -614,7 +613,7 @@ public class DocViewerActivity extends AppCompatActivity {
                     String newName = input.getText().toString().trim();
                     if (!newName.isEmpty()) {
                         binding.progressBar.setVisibility(View.VISIBLE);
-                        executor.execute(() -> {
+                        AppExecutors.getInstance().diskIO().execute(() -> {
                             try {
                                 File pdfFile = WordToPdfConverter.convertToPdf(
                                         textToSave,
@@ -755,6 +754,6 @@ public class DocViewerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        executor.shutdown();
+        // AppExecutors manages its own lifecycle - no shutdown needed
     }
 }

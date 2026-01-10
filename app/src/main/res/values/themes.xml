@@ -1,40 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.DocumentReader" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="colorAccent">@color/accent</item>
-        <item name="android:windowBackground">@color/background_light</item>
-        <item name="android:statusBarColor">@color/primary_dark</item>
+    <!-- Splash Screen Theme -->
+    <style name="Theme.DocumentReader.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/primary</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/primary</item>
+        <item name="windowSplashScreenAnimationDuration">400</item>
+        <item name="postSplashScreenTheme">@style/Theme.DocumentReader</item>
     </style>
 
-    <style name="Theme.DocumentReader.Dark" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="colorAccent">@color/accent</item>
-        <item name="android:windowBackground">@color/background_dark</item>
-        <item name="android:statusBarColor">@color/background_dark</item>
+    <!-- Main Theme with Dynamic Colors Support -->
+    <style name="Theme.DocumentReader" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary colors from dynamic/fallback -->
+        <item name="colorPrimary">@color/md_theme_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_theme_onPrimaryContainer</item>
+
+        <!-- Secondary colors -->
+        <item name="colorSecondary">@color/md_theme_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/md_theme_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_theme_onSecondaryContainer</item>
+
+        <!-- Tertiary colors -->
+        <item name="colorTertiary">@color/md_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/md_theme_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/md_theme_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/md_theme_onTertiaryContainer</item>
+
+        <!-- Background and Surface -->
+        <item name="android:colorBackground">@color/md_theme_background</item>
+        <item name="colorSurface">@color/md_theme_surface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_surfaceVariant</item>
+        <item name="colorOnSurface">@color/md_theme_onSurface</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_onSurfaceVariant</item>
+
+        <!-- Error colors -->
+        <item name="colorError">@color/md_theme_error</item>
+        <item name="colorOnError">@color/md_theme_onError</item>
+        <item name="colorErrorContainer">@color/md_theme_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/md_theme_onErrorContainer</item>
+
+        <!-- Outline -->
+        <item name="colorOutline">@color/md_theme_outline</item>
+        <item name="colorOutlineVariant">@color/md_theme_outlineVariant</item>
+
+        <!-- Surface containers for modern cards -->
+        <item name="colorSurfaceContainerLowest">@color/md_theme_surfaceContainerLowest</item>
+        <item name="colorSurfaceContainerLow">@color/md_theme_surfaceContainerLow</item>
+        <item name="colorSurfaceContainer">@color/md_theme_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/md_theme_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/md_theme_surfaceContainerHighest</item>
+
+        <!-- Edge-to-edge with transparent system bars -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Toolbar Style -->
+    <!-- Toolbar Style with dynamic colors -->
     <style name="ToolbarStyle" parent="Widget.Material3.Toolbar">
-        <item name="android:background">@color/primary</item>
-        <item name="titleTextColor">@android:color/white</item>
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="titleTextColor">?attr/colorOnSurface</item>
     </style>
 
-    <!-- Card Style -->
+    <!-- Card Style - modern with surface container -->
     <style name="CardStyle" parent="Widget.Material3.CardView.Filled">
-        <item name="cardCornerRadius">12dp</item>
-        <item name="cardElevation">4dp</item>
+        <item name="cardCornerRadius">@dimen/card_corner_radius_large</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="strokeWidth">0dp</item>
     </style>
 
     <!-- Button Style -->
     <style name="ButtonStyle" parent="Widget.Material3.Button">
-        <item name="cornerRadius">8dp</item>
+        <item name="cornerRadius">12dp</item>
     </style>
 
-    <!-- FAB Style -->
+    <!-- FAB Style with dynamic colors -->
     <style name="FabStyle" parent="Widget.Material3.FloatingActionButton.Primary">
-        <item name="backgroundTint">@color/accent</item>
+        <item name="backgroundTint">?attr/colorPrimaryContainer</item>
+        <item name="tint">?attr/colorOnPrimaryContainer</item>
+    </style>
+
+    <!-- Extended FAB Style -->
+    <style name="ExtendedFabStyle" parent="Widget.Material3.ExtendedFloatingActionButton.Primary">
+        <item name="backgroundTint">?attr/colorPrimaryContainer</item>
+        <item name="iconTint">?attr/colorOnPrimaryContainer</item>
+        <item name="android:textColor">?attr/colorOnPrimaryContainer</item>
     </style>
 </resources>

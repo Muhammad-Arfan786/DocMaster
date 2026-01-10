@@ -9,28 +9,19 @@ import android.graphics.RectF;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.IPdfTextLocation;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.RegexBasedLocationExtractionStrategy;
+import com.lowagie.text.Document;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Visual PDF Editor - Provides Word-like editing experience for PDFs.
@@ -97,18 +88,18 @@ public class VisualPdfEditor {
     public static List<TextBlock> extractTextBlocks(String pdfPath) {
         List<TextBlock> blocks = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-
-            int numPages = doc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            int numPages = reader.getNumberOfPages();
 
             for (int pageNum = 1; pageNum <= numPages; pageNum++) {
-                PdfPage page = doc.getPage(pageNum);
-                String pageText = PdfTextExtractor.getTextFromPage(page);
+                PdfTextExtractor extractor = new PdfTextExtractor(reader);
+                String pageText = extractor.getTextFromPage(pageNum);
 
                 // Split into lines
                 String[] lines = pageText.split("\n");
-                Rectangle pageSize = page.getPageSize();
+                Rectangle pageSize = reader.getPageSize(pageNum);
                 float pageHeight = pageSize.getHeight();
                 float pageWidth = pageSize.getWidth();
 
@@ -123,32 +114,11 @@ public class VisualPdfEditor {
                         continue;
                     }
 
-                    // Try to find exact position using regex search
+                    // Use estimated position (OpenPDF doesn't have regex-based location extraction)
                     float x = margin;
                     float y = currentY;
                     float width = pageWidth - (2 * margin);
                     float height = lineHeight;
-
-                    // Search for this text to get accurate position
-                    try {
-                        RegexBasedLocationExtractionStrategy strategy =
-                                new RegexBasedLocationExtractionStrategy(Pattern.quote(line.trim()));
-                        com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor processor =
-                                new com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor(strategy);
-                        processor.processPageContent(page);
-
-                        Collection<IPdfTextLocation> locations = strategy.getResultantLocations();
-                        if (!locations.isEmpty()) {
-                            IPdfTextLocation loc = locations.iterator().next();
-                            Rectangle rect = loc.getRectangle();
-                            x = rect.getX();
-                            y = rect.getY();
-                            width = rect.getWidth();
-                            height = rect.getHeight();
-                        }
-                    } catch (Exception e) {
-                        // Use estimated position
-                    }
 
                     TextBlock block = new TextBlock(line.trim(), pageNum, x, y, width, height);
                     blocks.add(block);
@@ -159,6 +129,10 @@ public class VisualPdfEditor {
 
         } catch (Exception e) {
             AppLogger.e("VisualPdfEditor", "Error", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
 
         return blocks;
@@ -170,16 +144,17 @@ public class VisualPdfEditor {
     public static List<TextBlock> extractTextBlocksForPage(String pdfPath, int pageNumber) {
         List<TextBlock> blocks = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber < 1 || pageNumber > doc.getNumberOfPages()) {
+            if (pageNumber < 1 || pageNumber > reader.getNumberOfPages()) {
                 return blocks;
             }
 
-            PdfPage page = doc.getPage(pageNumber);
-            String pageText = PdfTextExtractor.getTextFromPage(page);
-            Rectangle pageSize = page.getPageSize();
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            String pageText = extractor.getTextFromPage(pageNumber);
+            Rectangle pageSize = reader.getPageSize(pageNumber);
             float pageHeight = pageSize.getHeight();
             float pageWidth = pageSize.getWidth();
 
@@ -199,27 +174,6 @@ public class VisualPdfEditor {
                 float width = pageWidth - (2 * margin);
                 float height = lineHeight;
 
-                // Try exact position
-                try {
-                    RegexBasedLocationExtractionStrategy strategy =
-                            new RegexBasedLocationExtractionStrategy(Pattern.quote(line.trim()));
-                    com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor processor =
-                            new com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor(strategy);
-                    processor.processPageContent(page);
-
-                    Collection<IPdfTextLocation> locations = strategy.getResultantLocations();
-                    if (!locations.isEmpty()) {
-                        IPdfTextLocation loc = locations.iterator().next();
-                        Rectangle rect = loc.getRectangle();
-                        x = rect.getX();
-                        y = rect.getY();
-                        width = rect.getWidth();
-                        height = rect.getHeight();
-                    }
-                } catch (Exception e) {
-                    // Use estimated
-                }
-
                 TextBlock block = new TextBlock(line.trim(), pageNumber, x, y, width, height);
                 blocks.add(block);
                 currentY -= lineHeight;
@@ -227,6 +181,10 @@ public class VisualPdfEditor {
 
         } catch (Exception e) {
             AppLogger.e("VisualPdfEditor", "Error", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
 
         return blocks;
@@ -256,18 +214,22 @@ public class VisualPdfEditor {
         for (TextBlock block : editedBlocks) {
             if (!block.isEdited || block.newText == null) continue;
 
-            // Apply this edit
-            try (PdfReader reader = new PdfReader(outputFile);
-                 PdfWriter writer = new PdfWriter(new FileOutputStream(tempFile));
-                 PdfDocument doc = new PdfDocument(reader, writer)) {
+            PdfReader reader = null;
+            PdfStamper stamper = null;
+            FileOutputStream fos = null;
 
-                PdfPage page = doc.getPage(block.pageNumber);
-                PdfCanvas canvas = new PdfCanvas(page);
-                PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            try {
+                // Apply this edit using PdfStamper
+                reader = new PdfReader(outputFile.getAbsolutePath());
+                fos = new FileOutputStream(tempFile);
+                stamper = new PdfStamper(reader, fos);
+
+                PdfContentByte canvas = stamper.getOverContent(block.pageNumber);
+                BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
                 // Cover old text with white
                 canvas.saveState();
-                canvas.setFillColor(ColorConstants.WHITE);
+                canvas.setRGBColorFill(255, 255, 255);
                 canvas.rectangle(block.pdfX - 2, block.pdfY - 2,
                         block.pdfWidth + 4, block.pdfHeight + 4);
                 canvas.fill();
@@ -277,11 +239,17 @@ public class VisualPdfEditor {
                 canvas.saveState();
                 canvas.beginText();
                 canvas.setFontAndSize(font, block.fontSize);
-                canvas.setFillColor(ColorConstants.BLACK);
+                canvas.setRGBColorFill(0, 0, 0);
                 canvas.moveText(block.pdfX, block.pdfY + 2);
-                canvas.showText(block.newText);
+                // Use raw PDF operators to avoid AWT dependencies
+                String escaped = escapePdfString(block.newText);
+                canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
                 canvas.endText();
                 canvas.restoreState();
+            } finally {
+                if (stamper != null) try { stamper.close(); } catch (Exception ignored) {}
+                if (reader != null) try { reader.close(); } catch (Exception ignored) {}
+                if (fos != null) try { fos.close(); } catch (Exception ignored) {}
             }
 
             // Swap files
@@ -311,49 +279,65 @@ public class VisualPdfEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument doc = new PdfDocument(reader, writer)) {
+        PdfReader reader = new PdfReader(sourcePdfPath);
+        PdfStamper stamper = new PdfStamper(reader, new FileOutputStream(outputFile));
 
-            PdfPage page = doc.getPage(pageNumber);
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        PdfContentByte canvas = stamper.getOverContent(pageNumber);
+        BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
-            // Find text location
-            RegexBasedLocationExtractionStrategy strategy =
-                    new RegexBasedLocationExtractionStrategy(Pattern.quote(findText));
-            com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor processor =
-                    new com.itextpdf.kernel.pdf.canvas.parser.PdfCanvasProcessor(strategy);
-            processor.processPageContent(page);
+        // Get page size for position estimation
+        Rectangle pageSize = reader.getPageSize(pageNumber);
+        float pageHeight = pageSize.getHeight();
+        float pageWidth = pageSize.getWidth();
 
-            Collection<IPdfTextLocation> locations = strategy.getResultantLocations();
+        // Extract text to find position
+        PdfTextExtractor extractor = new PdfTextExtractor(reader);
+        String pageText = extractor.getTextFromPage(pageNumber);
 
-            if (!locations.isEmpty()) {
-                PdfCanvas canvas = new PdfCanvas(page);
+        // Find the text in lines and estimate position
+        String[] lines = pageText.split("\n");
+        float lineHeight = 14f;
+        float margin = 50f;
+        float currentY = pageHeight - margin;
 
-                for (IPdfTextLocation location : locations) {
-                    Rectangle rect = location.getRectangle();
+        for (String line : lines) {
+            if (line.contains(findText)) {
+                float x = margin;
+                float y = currentY;
+                float width = pageWidth - (2 * margin);
+                float height = lineHeight;
 
-                    // Cover with white
-                    canvas.saveState();
-                    canvas.setFillColor(ColorConstants.WHITE);
-                    canvas.rectangle(rect.getX() - 2, rect.getY() - 2,
-                            rect.getWidth() + 4, rect.getHeight() + 4);
-                    canvas.fill();
-                    canvas.restoreState();
+                // Cover with white
+                canvas.saveState();
+                canvas.setRGBColorFill(255, 255, 255);
+                canvas.rectangle(x - 2, y - 2, width + 4, height + 4);
+                canvas.fill();
+                canvas.restoreState();
 
-                    // Write replacement
-                    float fontSize = Math.max(10, rect.getHeight() * 0.8f);
-                    canvas.saveState();
-                    canvas.beginText();
-                    canvas.setFontAndSize(font, fontSize);
-                    canvas.setFillColor(ColorConstants.BLACK);
-                    canvas.moveText(rect.getX(), rect.getY() + 2);
-                    canvas.showText(replaceText);
-                    canvas.endText();
-                    canvas.restoreState();
-                }
+                // Write replacement (replace findText with replaceText in the line)
+                String newLine = line.replace(findText, replaceText);
+                float fontSize = Math.max(10, height * 0.8f);
+                canvas.saveState();
+                canvas.beginText();
+                canvas.setFontAndSize(font, fontSize);
+                canvas.setRGBColorFill(0, 0, 0);
+                canvas.moveText(x, y + 2);
+                // Use raw PDF operators to avoid AWT dependencies
+                String escaped = escapePdfString(newLine);
+                canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
+                canvas.endText();
+                canvas.restoreState();
+            }
+
+            if (line.trim().isEmpty()) {
+                currentY -= lineHeight * 0.5f;
+            } else {
+                currentY -= lineHeight;
             }
         }
+
+        stamper.close();
+        reader.close();
 
         return outputFile;
     }
@@ -374,36 +358,37 @@ public class VisualPdfEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument doc = new PdfDocument(reader, writer)) {
+        PdfReader reader = new PdfReader(sourcePdfPath);
+        PdfStamper stamper = new PdfStamper(reader, new FileOutputStream(outputFile));
 
-            PdfPage page = doc.getPage(pageNumber);
-            PdfCanvas canvas = new PdfCanvas(page);
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        PdfContentByte canvas = stamper.getOverContent(pageNumber);
+        BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
-            float r = ((color >> 16) & 0xFF) / 255f;
-            float g = ((color >> 8) & 0xFF) / 255f;
-            float b = (color & 0xFF) / 255f;
+        float r = ((color >> 16) & 0xFF) / 255f;
+        float g = ((color >> 8) & 0xFF) / 255f;
+        float b = (color & 0xFF) / 255f;
 
-            canvas.saveState();
-            canvas.beginText();
-            canvas.setFontAndSize(font, fontSize);
-            canvas.setFillColor(new DeviceRgb((int)(r*255), (int)(g*255), (int)(b*255)));
-            canvas.moveText(x, y);
+        canvas.saveState();
+        canvas.beginText();
+        canvas.setFontAndSize(font, fontSize);
+        canvas.setRGBColorFill((int)(r*255), (int)(g*255), (int)(b*255));
+        canvas.moveText(x, y);
 
-            // Handle multi-line
-            String[] lines = text.split("\n");
-            for (int i = 0; i < lines.length; i++) {
-                if (i > 0) {
-                    canvas.moveText(0, -fontSize - 2);
-                }
-                canvas.showText(lines[i]);
+        // Handle multi-line - use raw PDF operators to avoid AWT dependencies
+        String[] lines = text.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                canvas.moveText(0, -fontSize - 2);
             }
-
-            canvas.endText();
-            canvas.restoreState();
+            String escaped = escapePdfString(lines[i]);
+            canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
         }
+
+        canvas.endText();
+        canvas.restoreState();
+
+        stamper.close();
+        reader.close();
 
         return outputFile;
     }
@@ -412,19 +397,23 @@ public class VisualPdfEditor {
      * Get page dimensions
      */
     public static float[] getPageDimensions(String pdfPath, int pageNumber) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber < 1 || pageNumber > doc.getNumberOfPages()) {
+            if (pageNumber < 1 || pageNumber > reader.getNumberOfPages()) {
                 return null;
             }
 
-            PdfPage page = doc.getPage(pageNumber);
-            Rectangle rect = page.getPageSize();
+            Rectangle rect = reader.getPageSize(pageNumber);
             return new float[]{rect.getWidth(), rect.getHeight()};
 
         } catch (Exception e) {
             return null;
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
@@ -432,11 +421,16 @@ public class VisualPdfEditor {
      * Get page count
      */
     public static int getPageCount(String pdfPath) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-            return doc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            return reader.getNumberOfPages();
         } catch (Exception e) {
             return 0;
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
@@ -444,17 +438,23 @@ public class VisualPdfEditor {
      * Get full text of a page
      */
     public static String getPageText(String pdfPath, int pageNumber) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber < 1 || pageNumber > doc.getNumberOfPages()) {
+            if (pageNumber < 1 || pageNumber > reader.getNumberOfPages()) {
                 return "";
             }
 
-            return PdfTextExtractor.getTextFromPage(doc.getPage(pageNumber));
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            return extractor.getTextFromPage(pageNumber);
 
         } catch (Exception e) {
             return "";
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
@@ -467,5 +467,17 @@ public class VisualPdfEditor {
                 out.write(buffer, 0, len);
             }
         }
+    }
+
+    /**
+     * Escape special characters for PDF string literal.
+     */
+    private static String escapePdfString(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("(", "\\(")
+                   .replace(")", "\\)")
+                   .replace("\r", "\\r")
+                   .replace("\n", "\\n");
     }
 }

@@ -2,54 +2,51 @@ package com.docreader.utils;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.os.Environment;
 
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Image;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.io.font.constants.StandardFonts;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-import java.io.ByteArrayOutputStream;
+// PDFBox-Android imports (Android-compatible, no java.awt dependencies)
+import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import com.tom_roush.pdfbox.pdmodel.PDPage;
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
+
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manager class for handling PDF editing operations.
  * Supports adding text annotations, drawings, and saving modified PDFs.
+ *
+ * Thread-safe: Uses concurrent collections for multi-threaded access.
+ *
+ * Following SOLID principles:
+ * - Single Responsibility: Manages PDF edit state and saving
+ * - Uses proper resource management with try-with-resources
  */
 public class PdfEditManager {
 
-    private Context context;
-    private String originalPdfPath;
-    private Map<Integer, List<TextAnnotation>> textAnnotations = new HashMap<>();
-    private Map<Integer, Bitmap> drawingOverlays = new HashMap<>();
+    private static final String TAG = "PdfEditManager";
 
-    // Undo stack to track all edit operations
-    private List<EditAction> undoStack = new ArrayList<>();
+    private final Context context;
+    private final String originalPdfPath;
 
-    public PdfEditManager(Context context, String pdfPath) {
-        this.context = context;
+    // Thread-safe collections for concurrent access from UI and background threads
+    private final Map<Integer, List<TextAnnotation>> textAnnotations = new ConcurrentHashMap<>();
+    private final Map<Integer, Bitmap> drawingOverlays = new ConcurrentHashMap<>();
+    private final List<EditAction> undoStack = Collections.synchronizedList(new ArrayList<>());
+
+    public PdfEditManager(@NonNull Context context, @NonNull String pdfPath) {
+        this.context = context.getApplicationContext();
         this.originalPdfPath = pdfPath;
     }
 
@@ -65,11 +62,11 @@ public class PdfEditManager {
      * Represents an edit action that can be undone
      */
     public static class EditAction {
-        public ActionType type;
-        public int pageIndex;
-        public Object data; // TextAnnotation or Bitmap reference
+        public final ActionType type;
+        public final int pageIndex;
+        public final Object data;
 
-        public EditAction(ActionType type, int pageIndex, Object data) {
+        public EditAction(@NonNull ActionType type, int pageIndex, @Nullable Object data) {
             this.type = type;
             this.pageIndex = pageIndex;
             this.data = data;
@@ -77,254 +74,332 @@ public class PdfEditManager {
     }
 
     /**
-     * Add a text annotation to a specific page
+     * Add a text annotation to a specific page.
+     *
+     * @param pageIndex Page index (0-based)
+     * @param x Normalized X position (0-1)
+     * @param y Normalized Y position (0-1)
+     * @param text Text content
+     * @param color Android color int
+     * @param fontSize Font size in points
      */
-    public void addTextAnnotation(int pageIndex, float x, float y, String text, int color, float fontSize) {
+    public void addTextAnnotation(int pageIndex, float x, float y,
+                                   @NonNull String text, int color, float fontSize) {
         TextAnnotation annotation = new TextAnnotation(x, y, text, color, fontSize);
 
-        if (!textAnnotations.containsKey(pageIndex)) {
-            textAnnotations.put(pageIndex, new ArrayList<>());
-        }
+        textAnnotations.computeIfAbsent(pageIndex, k -> Collections.synchronizedList(new ArrayList<>()));
         textAnnotations.get(pageIndex).add(annotation);
 
-        // Track for undo
         undoStack.add(new EditAction(ActionType.TEXT_ANNOTATION, pageIndex, annotation));
+
+        AppLogger.d(TAG, "Added text annotation on page " + pageIndex);
     }
 
     /**
-     * Set the drawing overlay bitmap for a specific page
+     * Set the drawing overlay bitmap for a specific page.
+     * Creates a copy of the bitmap to prevent external modifications.
+     *
+     * @param pageIndex Page index (0-based)
+     * @param bitmap The drawing bitmap (will be copied)
      */
-    public void setDrawingOverlay(int pageIndex, Bitmap bitmap) {
-        if (bitmap != null && !bitmap.isRecycled()) {
-            Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
-            drawingOverlays.put(pageIndex, copy);
+    public void setDrawingOverlay(int pageIndex, @Nullable Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            AppLogger.w(TAG, "Attempted to set null or recycled bitmap overlay");
+            return;
+        }
 
-            // Track for undo
+        // Recycle existing overlay for this page
+        Bitmap existing = drawingOverlays.get(pageIndex);
+        if (existing != null && !existing.isRecycled()) {
+            existing.recycle();
+        }
+
+        // Create a copy to ensure we own the bitmap
+        Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
+        if (copy != null) {
+            drawingOverlays.put(pageIndex, copy);
             undoStack.add(new EditAction(ActionType.DRAWING_OVERLAY, pageIndex, copy));
+            AppLogger.d(TAG, "Set drawing overlay on page " + pageIndex);
         }
     }
 
     /**
-     * Undo the last edit action
+     * Undo the last edit action.
+     *
      * @return true if an action was undone, false if nothing to undo
      */
     public boolean undo() {
-        if (undoStack.isEmpty()) {
-            return false;
-        }
+        synchronized (undoStack) {
+            if (undoStack.isEmpty()) {
+                return false;
+            }
 
-        EditAction lastAction = undoStack.remove(undoStack.size() - 1);
+            EditAction lastAction = undoStack.remove(undoStack.size() - 1);
 
-        switch (lastAction.type) {
-            case TEXT_ANNOTATION:
-                // Remove the text annotation
-                if (textAnnotations.containsKey(lastAction.pageIndex)) {
+            switch (lastAction.type) {
+                case TEXT_ANNOTATION:
                     List<TextAnnotation> annotations = textAnnotations.get(lastAction.pageIndex);
-                    annotations.remove(lastAction.data);
-                    if (annotations.isEmpty()) {
-                        textAnnotations.remove(lastAction.pageIndex);
+                    if (annotations != null) {
+                        annotations.remove(lastAction.data);
+                        if (annotations.isEmpty()) {
+                            textAnnotations.remove(lastAction.pageIndex);
+                        }
                     }
-                }
-                break;
+                    break;
 
-            case DRAWING_OVERLAY:
-                // Remove the drawing overlay
-                Bitmap removedBitmap = drawingOverlays.remove(lastAction.pageIndex);
-                if (removedBitmap != null && !removedBitmap.isRecycled()) {
-                    removedBitmap.recycle();
-                }
-                break;
+                case DRAWING_OVERLAY:
+                    Bitmap removedBitmap = drawingOverlays.remove(lastAction.pageIndex);
+                    if (removedBitmap != null && !removedBitmap.isRecycled()) {
+                        removedBitmap.recycle();
+                    }
+                    break;
+            }
+
+            AppLogger.d(TAG, "Undo: " + lastAction.type);
+            return true;
         }
-
-        return true;
     }
 
     /**
-     * Check if there are any actions to undo
+     * Check if there are any actions to undo.
      */
     public boolean canUndo() {
         return !undoStack.isEmpty();
     }
 
     /**
-     * Clear the undo stack
+     * Clear the undo stack.
      */
     public void clearUndoStack() {
-        undoStack.clear();
-    }
-
-    /**
-     * Clear all annotations for a page
-     */
-    public void clearPageAnnotations(int pageIndex) {
-        textAnnotations.remove(pageIndex);
-        if (drawingOverlays.containsKey(pageIndex)) {
-            Bitmap bitmap = drawingOverlays.remove(pageIndex);
-            if (bitmap != null && !bitmap.isRecycled()) {
-                bitmap.recycle();
-            }
+        synchronized (undoStack) {
+            undoStack.clear();
         }
     }
 
     /**
-     * Clear all annotations
+     * Clear all annotations for a specific page.
+     *
+     * @param pageIndex Page index (0-based)
+     */
+    public void clearPageAnnotations(int pageIndex) {
+        textAnnotations.remove(pageIndex);
+
+        Bitmap bitmap = drawingOverlays.remove(pageIndex);
+        if (bitmap != null && !bitmap.isRecycled()) {
+            bitmap.recycle();
+        }
+    }
+
+    /**
+     * Clear all annotations and overlays.
      */
     public void clearAllAnnotations() {
         textAnnotations.clear();
+
         for (Bitmap bitmap : drawingOverlays.values()) {
             if (bitmap != null && !bitmap.isRecycled()) {
                 bitmap.recycle();
             }
         }
         drawingOverlays.clear();
+
+        AppLogger.d(TAG, "Cleared all annotations");
     }
 
     /**
-     * Check if there are any unsaved changes
+     * Check if there are any unsaved changes.
      */
     public boolean hasChanges() {
         return !textAnnotations.isEmpty() || !drawingOverlays.isEmpty();
     }
 
     /**
-     * Save the edited PDF to a new file
-     * @return The path to the saved file, or null if failed
+     * Save the edited PDF to a new file in Documents folder.
+     *
+     * @return The path to the saved file
+     * @throws IOException if save fails
      */
+    @NonNull
     public String saveEditedPdf() throws IOException {
-        // Generate output file name
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File originalFile = new File(originalPdfPath);
-        String baseName = originalFile.getName();
-        if (baseName.toLowerCase().endsWith(".pdf")) {
-            baseName = baseName.substring(0, baseName.length() - 4);
-        }
-
-        File outputDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
-        if (!outputDir.exists()) {
-            outputDir.mkdirs();
-        }
-
-        File outputFile = new File(outputDir, baseName + "_edited_" + timestamp + ".pdf");
-        return saveEditedPdfTo(outputFile.getAbsolutePath());
+        String outputPath = StorageManager.generateOutputPath(
+                new File(originalPdfPath).getName(),
+                "edited",
+                Constants.EXT_PDF
+        );
+        return saveEditedPdfTo(outputPath);
     }
 
     /**
-     * Save the edited PDF to a specific path
+     * Save the edited PDF to a specific path using PDFBox-Android.
+     * PDFBox is Android-compatible and doesn't have java.awt dependencies.
+     *
+     * @param outputPath Destination file path
+     * @return The output path on success
+     * @throws IOException if save fails
      */
-    public String saveEditedPdfTo(String outputPath) throws IOException {
-        PdfReader reader = new PdfReader(originalPdfPath);
-        PdfWriter writer = new PdfWriter(outputPath);
-        PdfDocument pdfDoc = new PdfDocument(reader, writer);
+    @NonNull
+    public String saveEditedPdfTo(@NonNull String outputPath) throws IOException {
+        File outputFile = new File(outputPath);
+
+        // Ensure parent directory exists
+        File parentDir = outputFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        PDDocument document = null;
 
         try {
-            int numberOfPages = pdfDoc.getNumberOfPages();
+            document = PDDocument.load(new File(originalPdfPath));
+            int numberOfPages = document.getNumberOfPages();
 
-            for (int i = 1; i <= numberOfPages; i++) {
-                int pageIndex = i - 1;
-                PdfPage page = pdfDoc.getPage(i);
-                Rectangle pageSize = page.getPageSize();
-                PdfCanvas canvas = new PdfCanvas(page);
+            for (int i = 0; i < numberOfPages; i++) {
+                PDPage page = document.getPage(i);
+                PDRectangle pageSize = page.getMediaBox();
 
-                // Add drawing overlay if exists
-                if (drawingOverlays.containsKey(pageIndex)) {
-                    Bitmap overlay = drawingOverlays.get(pageIndex);
-                    if (overlay != null && !overlay.isRecycled()) {
-                        addBitmapToPage(canvas, overlay, pageSize);
-                    }
+                // Check if there are any annotations for this page
+                Bitmap overlay = drawingOverlays.get(i);
+                List<TextAnnotation> annotations = textAnnotations.get(i);
+
+                boolean hasOverlay = overlay != null && !overlay.isRecycled();
+                boolean hasAnnotations = annotations != null && !annotations.isEmpty();
+
+                if (!hasOverlay && !hasAnnotations) {
+                    continue; // Skip pages with no edits
                 }
 
-                // Add text annotations
-                if (textAnnotations.containsKey(pageIndex)) {
-                    List<TextAnnotation> annotations = textAnnotations.get(pageIndex);
-                    for (TextAnnotation annotation : annotations) {
-                        addTextToPage(canvas, annotation, pageSize);
+                // Create content stream in APPEND mode
+                PDPageContentStream contentStream = new PDPageContentStream(
+                        document, page, PDPageContentStream.AppendMode.APPEND, true, true);
+
+                try {
+                    // Add drawing overlay if exists
+                    if (hasOverlay) {
+                        addBitmapToPage(document, contentStream, overlay, pageSize);
                     }
+
+                    // Add text annotations
+                    if (hasAnnotations) {
+                        synchronized (annotations) {
+                            for (TextAnnotation annotation : annotations) {
+                                addTextToPage(contentStream, annotation, pageSize);
+                            }
+                        }
+                    }
+                } finally {
+                    contentStream.close();
                 }
             }
 
-            pdfDoc.close();
+            document.save(outputFile);
+            AppLogger.i(TAG, "PDF saved to: " + outputPath);
             return outputPath;
 
         } catch (Exception e) {
-            pdfDoc.close();
-            // Delete failed output file
-            new File(outputPath).delete();
+            // Clean up partial output file on failure
+            if (outputFile.exists()) {
+                outputFile.delete();
+            }
+            AppLogger.e(TAG, "Failed to save PDF", e);
             throw new IOException("Failed to save PDF: " + e.getMessage(), e);
+        } finally {
+            if (document != null) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
-    private void addBitmapToPage(PdfCanvas canvas, Bitmap bitmap, Rectangle pageSize) throws IOException {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-        byte[] bitmapData = stream.toByteArray();
-
-        ImageData imageData = ImageDataFactory.create(bitmapData);
-
-        // Scale bitmap to fit page
-        float scaleX = pageSize.getWidth() / bitmap.getWidth();
-        float scaleY = pageSize.getHeight() / bitmap.getHeight();
-
-        canvas.saveState();
-        canvas.addImageFittedIntoRectangle(imageData,
-                new Rectangle(0, 0, pageSize.getWidth(), pageSize.getHeight()), false);
-        canvas.restoreState();
+    /**
+     * Add bitmap overlay to PDF page using PDFBox-Android.
+     */
+    private void addBitmapToPage(@NonNull PDDocument document,
+                                  @NonNull PDPageContentStream contentStream,
+                                  @NonNull Bitmap bitmap,
+                                  @NonNull PDRectangle pageSize) throws IOException {
+        try {
+            PDImageXObject image = LosslessFactory.createFromImage(document, bitmap);
+            contentStream.drawImage(image, 0, 0, pageSize.getWidth(), pageSize.getHeight());
+        } catch (Exception e) {
+            throw new IOException("Failed to add bitmap to page", e);
+        }
     }
 
-    private void addTextToPage(PdfCanvas canvas, TextAnnotation annotation, Rectangle pageSize) {
+    /**
+     * Add text annotation to PDF page using PDFBox-Android.
+     */
+    private void addTextToPage(@NonNull PDPageContentStream contentStream,
+                                @NonNull TextAnnotation annotation,
+                                @NonNull PDRectangle pageSize) {
         try {
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            PDType1Font font = PDType1Font.HELVETICA;
 
             // Convert Android coordinates to PDF coordinates (flip Y axis)
             float pdfX = annotation.x * pageSize.getWidth();
             float pdfY = pageSize.getHeight() - (annotation.y * pageSize.getHeight());
 
-            // Convert Android color to iText color
-            int red = (annotation.color >> 16) & 0xFF;
-            int green = (annotation.color >> 8) & 0xFF;
-            int blue = annotation.color & 0xFF;
+            // Convert Android color to RGB values (0-1 range)
+            float red = ((annotation.color >> 16) & 0xFF) / 255f;
+            float green = ((annotation.color >> 8) & 0xFF) / 255f;
+            float blue = (annotation.color & 0xFF) / 255f;
 
-            canvas.beginText()
-                    .setFontAndSize(font, annotation.fontSize)
-                    .setColor(new DeviceRgb(red, green, blue), true)
-                    .moveText(pdfX, pdfY)
-                    .showText(annotation.text)
-                    .endText();
+            contentStream.beginText();
+            contentStream.setFont(font, annotation.fontSize);
+            contentStream.setNonStrokingColor(red, green, blue);
+            contentStream.newLineAtOffset(pdfX, pdfY);
+            contentStream.showText(annotation.text);
+            contentStream.endText();
 
         } catch (Exception e) {
-            AppLogger.e("PdfEditManager", "Error", e);
+            AppLogger.e(TAG, "Failed to add text annotation", e);
         }
     }
 
     /**
-     * Get the list of text annotations for a page
+     * Get the list of text annotations for a page.
+     *
+     * @param pageIndex Page index (0-based)
+     * @return List of annotations (never null)
      */
+    @NonNull
     public List<TextAnnotation> getTextAnnotations(int pageIndex) {
-        return textAnnotations.getOrDefault(pageIndex, new ArrayList<>());
+        List<TextAnnotation> annotations = textAnnotations.get(pageIndex);
+        return annotations != null ? new ArrayList<>(annotations) : new ArrayList<>();
     }
 
     /**
-     * Remove a specific text annotation
+     * Remove a specific text annotation.
+     *
+     * @param pageIndex Page index (0-based)
+     * @param annotationIndex Index of annotation to remove
      */
     public void removeTextAnnotation(int pageIndex, int annotationIndex) {
-        if (textAnnotations.containsKey(pageIndex)) {
-            List<TextAnnotation> annotations = textAnnotations.get(pageIndex);
-            if (annotationIndex >= 0 && annotationIndex < annotations.size()) {
+        List<TextAnnotation> annotations = textAnnotations.get(pageIndex);
+        if (annotations != null && annotationIndex >= 0 && annotationIndex < annotations.size()) {
+            synchronized (annotations) {
                 annotations.remove(annotationIndex);
             }
         }
     }
 
     /**
-     * Text annotation data class
+     * Get the original PDF path.
+     */
+    @NonNull
+    public String getOriginalPdfPath() {
+        return originalPdfPath;
+    }
+
+    /**
+     * Text annotation data class.
      */
     public static class TextAnnotation {
-        public float x;      // Normalized X position (0-1)
-        public float y;      // Normalized Y position (0-1)
-        public String text;
-        public int color;
-        public float fontSize;
+        public final float x;
+        public final float y;
+        public final String text;
+        public final int color;
+        public final float fontSize;
 
-        public TextAnnotation(float x, float y, String text, int color, float fontSize) {
+        public TextAnnotation(float x, float y, @NonNull String text, int color, float fontSize) {
             this.x = x;
             this.y = y;
             this.text = text;

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Legacy colors (keep for backwards compatibility) -->
     <color name="primary">#1976D2</color>
     <color name="primary_dark">#1565C0</color>
     <color name="primary_light">#42A5F5</color>
@@ -9,6 +10,7 @@
     <color name="surface_light">#FFFFFF</color>
     <color name="text_primary_light">#212121</color>
     <color name="text_secondary_light">#757575</color>
+    <color name="text_secondary">#757575</color>
 
     <color name="background_dark">#121212</color>
     <color name="surface_dark">#1E1E1E</color>
@@ -21,6 +23,46 @@
     <color name="divider_light">#E0E0E0</color>
     <color name="divider_dark">#424242</color>
 
+    <!-- Material 3 Light Theme Fallback Colors -->
+    <!-- Generated from #1976D2 using Material Theme Builder -->
+    <color name="md_theme_primary">#1976D2</color>
+    <color name="md_theme_onPrimary">#FFFFFF</color>
+    <color name="md_theme_primaryContainer">#D3E4FF</color>
+    <color name="md_theme_onPrimaryContainer">#001C3A</color>
+
+    <color name="md_theme_secondary">#555F71</color>
+    <color name="md_theme_onSecondary">#FFFFFF</color>
+    <color name="md_theme_secondaryContainer">#D9E3F8</color>
+    <color name="md_theme_onSecondaryContainer">#121C2B</color>
+
+    <color name="md_theme_tertiary">#6E5676</color>
+    <color name="md_theme_onTertiary">#FFFFFF</color>
+    <color name="md_theme_tertiaryContainer">#F7D8FF</color>
+    <color name="md_theme_onTertiaryContainer">#27132F</color>
+
+    <color name="md_theme_background">#FDFBFF</color>
+    <color name="md_theme_onBackground">#1A1C1E</color>
+    <color name="md_theme_surface">#FDFBFF</color>
+    <color name="md_theme_onSurface">#1A1C1E</color>
+    <color name="md_theme_surfaceVariant">#E0E2EC</color>
+    <color name="md_theme_onSurfaceVariant">#44474E</color>
+
+    <color name="md_theme_outline">#74777F</color>
+    <color name="md_theme_outlineVariant">#C4C6D0</color>
+
+    <color name="md_theme_error">#BA1A1A</color>
+    <color name="md_theme_onError">#FFFFFF</color>
+    <color name="md_theme_errorContainer">#FFDAD6</color>
+    <color name="md_theme_onErrorContainer">#410002</color>
+
+    <!-- Surface container colors (Light) -->
+    <color name="md_theme_surfaceContainerLowest">#FFFFFF</color>
+    <color name="md_theme_surfaceContainerLow">#F7F9FF</color>
+    <color name="md_theme_surfaceContainer">#F1F3FA</color>
+    <color name="md_theme_surfaceContainerHigh">#EBF0F9</color>
+    <color name="md_theme_surfaceContainerHighest">#E5E7F0</color>
+
+    <!-- File type colors -->
     <color name="pdf_color">#F44336</color>
     <color name="doc_color">#2196F3</color>
     <color name="docx_color">#4CAF50</color>
@@ -50,4 +92,29 @@
     <color name="tool_edit_bg">#FCE4EC</color>
     <color name="tool_extract">#FF5722</color>
     <color name="tool_extract_bg">#FBE9E7</color>
+
+    <!-- Annotation/Drawing Colors -->
+    <color name="annotation_red">#F44336</color>
+    <color name="annotation_blue">#2196F3</color>
+    <color name="annotation_green">#4CAF50</color>
+    <color name="annotation_yellow">#FFEB3B</color>
+
+    <!-- UI Element Colors -->
+    <color name="viewer_background">#333333</color>
+    <color name="empty_state_background">#F5F5F5</color>
+    <color name="empty_state_icon">#BDBDBD</color>
+    <color name="bottom_sheet_handle">#66808080</color>
+    <color name="page_info_overlay">#99000000</color>
+    <color name="search_field_background">#FFFFFF</color>
+
+    <!-- Button States -->
+    <color name="color_button_stroke">#80FFFFFF</color>
+    <color name="color_button_stroke_selected">#FFFFFF</color>
+    <color name="tool_button_selected">#4DFFFFFF</color>
+    <color name="tool_button_normal">#33FFFFFF</color>
+
+    <!-- Icon Colors -->
+    <color name="icon_default">#000000</color>
+    <color name="icon_white">#FFFFFF</color>
+    <color name="icon_secondary">#757575</color>
 </resources>

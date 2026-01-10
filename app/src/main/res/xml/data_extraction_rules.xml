@@ -2,6 +2,7 @@
 <!--
     Data extraction rules for Android 12+ (API 31+).
     Controls cloud backup and device-to-device transfer behavior.
+    Note: Cache files are not backed up by default.
 -->
 <data-extraction-rules>
     <!-- Cloud backup settings -->

@@ -3,9 +3,8 @@ package com.docreader.utils;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 
 import java.io.Closeable;
 import java.io.File;
@@ -22,10 +21,10 @@ import java.io.OutputStream;
  * All methods ensure proper cleanup even when exceptions occur.
  *
  * Usage:
- *   int pageCount = ResourceManager.withPdfReader(path, doc -> doc.getNumberOfPages());
+ *   int pageCount = ResourceManager.withPdfReader(path, reader -> reader.getNumberOfPages());
  *
- *   ResourceManager.withPdfCopy(srcPath, destPath, (src, dest) -> {
- *       src.copyPagesTo(1, src.getNumberOfPages(), dest);
+ *   ResourceManager.withPdfStamper(srcPath, destPath, (reader, stamper) -> {
+ *       // modify PDF
  *       return destPath;
  *   });
  */
@@ -41,15 +40,20 @@ public final class ResourceManager {
      * Execute read-only operation on a PDF with automatic resource cleanup.
      *
      * @param path Path to the PDF file
-     * @param operation Operation to perform on the PDF document
+     * @param operation Operation to perform on the PDF reader
      * @return Result of the operation
      */
     public static <T> T withPdfReader(String path, PdfReaderOperation<T> operation) throws IOException {
-        try (PdfReader reader = new PdfReader(path);
-             PdfDocument doc = new PdfDocument(reader)) {
-            return operation.apply(doc);
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(path);
+            return operation.apply(reader);
         } catch (Exception e) {
             throw new IOException("PDF read operation failed: " + e.getMessage(), e);
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -57,51 +61,83 @@ public final class ResourceManager {
      * Execute read-only operation on a PDF (void return).
      */
     public static void withPdfReaderVoid(String path, PdfReaderVoidOperation operation) throws IOException {
-        try (PdfReader reader = new PdfReader(path);
-             PdfDocument doc = new PdfDocument(reader)) {
-            operation.apply(doc);
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(path);
+            operation.apply(reader);
         } catch (Exception e) {
             throw new IOException("PDF read operation failed: " + e.getMessage(), e);
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
-    // ==================== PDF COPY OPERATIONS ====================
+    // ==================== PDF STAMPER OPERATIONS (COPY/MODIFY) ====================
 
     /**
-     * Execute copy operation from source to destination PDF with automatic cleanup.
+     * Execute copy/modify operation from source to destination PDF with automatic cleanup.
+     * Uses PdfStamper for modifying existing PDFs.
      *
      * @param srcPath Source PDF path
      * @param destPath Destination PDF path
      * @param operation Operation to perform
      * @return Result of the operation
      */
-    public static <T> T withPdfCopy(String srcPath, String destPath,
-                                     PdfCopyOperation<T> operation) throws IOException {
-        try (PdfReader reader = new PdfReader(srcPath);
-             PdfWriter writer = new PdfWriter(destPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
-            return operation.apply(srcDoc, destDoc);
+    public static <T> T withPdfStamper(String srcPath, String destPath,
+                                        PdfStamperOperation<T> operation) throws IOException {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
+        try {
+            reader = new PdfReader(srcPath);
+            fos = new FileOutputStream(destPath);
+            stamper = new PdfStamper(reader, fos);
+            return operation.apply(reader, stamper);
         } catch (Exception e) {
             // Clean up partial output file on failure
             new File(destPath).delete();
-            throw new IOException("PDF copy operation failed: " + e.getMessage(), e);
+            throw new IOException("PDF stamper operation failed: " + e.getMessage(), e);
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
     /**
-     * Execute copy operation (void return).
+     * Execute copy/modify operation (void return).
      */
-    public static void withPdfCopyVoid(String srcPath, String destPath,
-                                        PdfCopyVoidOperation operation) throws IOException {
-        try (PdfReader reader = new PdfReader(srcPath);
-             PdfWriter writer = new PdfWriter(destPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
-            operation.apply(srcDoc, destDoc);
+    public static void withPdfStamperVoid(String srcPath, String destPath,
+                                           PdfStamperVoidOperation operation) throws IOException {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
+        try {
+            reader = new PdfReader(srcPath);
+            fos = new FileOutputStream(destPath);
+            stamper = new PdfStamper(reader, fos);
+            operation.apply(reader, stamper);
         } catch (Exception e) {
             new File(destPath).delete();
-            throw new IOException("PDF copy operation failed: " + e.getMessage(), e);
+            throw new IOException("PDF stamper operation failed: " + e.getMessage(), e);
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -109,6 +145,7 @@ public final class ResourceManager {
 
     /**
      * Execute read-write operation on a PDF (reads from src, writes to dest).
+     * Convenience wrapper that uses PdfStamper internally.
      *
      * @param srcPath Source PDF path
      * @param destPath Destination PDF path
@@ -117,13 +154,27 @@ public final class ResourceManager {
      */
     public static <T> T withPdfReadWrite(String srcPath, String destPath,
                                           PdfReaderOperation<T> operation) throws IOException {
-        try (PdfReader reader = new PdfReader(srcPath);
-             PdfWriter writer = new PdfWriter(destPath);
-             PdfDocument doc = new PdfDocument(reader, writer)) {
-            return operation.apply(doc);
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
+        try {
+            reader = new PdfReader(srcPath);
+            fos = new FileOutputStream(destPath);
+            stamper = new PdfStamper(reader, fos);
+            return operation.apply(reader);
         } catch (Exception e) {
             new File(destPath).delete();
             throw new IOException("PDF read-write operation failed: " + e.getMessage(), e);
+        } finally {
+            if (stamper != null) {
+                try { stamper.close(); } catch (Exception ignored) {}
+            }
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -132,13 +183,74 @@ public final class ResourceManager {
     /**
      * Execute operation with PdfRenderer (Android native) with automatic cleanup.
      */
-    public static <T> T withPdfRenderer(File file, PdfRendererOperation<T> operation) throws IOException {
+    public static <T> T withPdfRenderer(File file, PdfRendererOperation<T> operation) throws Exception {
         ParcelFileDescriptor fd = null;
         PdfRenderer renderer = null;
         try {
             fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
             renderer = new PdfRenderer(fd);
             return operation.apply(renderer);
+        } finally {
+            closeQuietly(renderer);
+            closeQuietly(fd);
+        }
+    }
+
+    /**
+     * Get page dimensions using Android's native PdfRenderer.
+     * This avoids OpenPDF's getPageSize() which triggers java.awt.Color dependency.
+     *
+     * @param pdfPath Path to the PDF file
+     * @param pageNumber 1-based page number
+     * @return float array [width, height] in points (72 dpi), or default A4 if error
+     */
+    public static float[] getPageSize(String pdfPath, int pageNumber) {
+        ParcelFileDescriptor fd = null;
+        PdfRenderer renderer = null;
+        PdfRenderer.Page page = null;
+        try {
+            File file = new File(pdfPath);
+            fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+            renderer = new PdfRenderer(fd);
+
+            int pageIndex = pageNumber - 1; // Convert to 0-based
+            if (pageIndex < 0 || pageIndex >= renderer.getPageCount()) {
+                return new float[]{Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4};
+            }
+
+            page = renderer.openPage(pageIndex);
+            // PdfRenderer returns dimensions in points (72 dpi)
+            float width = page.getWidth();
+            float height = page.getHeight();
+            return new float[]{width, height};
+        } catch (Exception e) {
+            AppLogger.w("ResourceManager", "Failed to get page size, using A4 default", e);
+            return new float[]{Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4};
+        } finally {
+            if (page != null) page.close();
+            closeQuietly(renderer);
+            closeQuietly(fd);
+        }
+    }
+
+    /**
+     * Get page count using Android's native PdfRenderer.
+     * This avoids OpenPDF's methods that might trigger java.awt dependencies.
+     *
+     * @param pdfPath Path to the PDF file
+     * @return Number of pages, or 0 if error
+     */
+    public static int getPageCount(String pdfPath) {
+        ParcelFileDescriptor fd = null;
+        PdfRenderer renderer = null;
+        try {
+            File file = new File(pdfPath);
+            fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+            renderer = new PdfRenderer(fd);
+            return renderer.getPageCount();
+        } catch (Exception e) {
+            AppLogger.w("ResourceManager", "Failed to get page count", e);
+            return 0;
         } finally {
             closeQuietly(renderer);
             closeQuietly(fd);
@@ -212,22 +324,22 @@ public final class ResourceManager {
 
     @FunctionalInterface
     public interface PdfReaderOperation<T> {
-        T apply(PdfDocument doc) throws Exception;
+        T apply(PdfReader reader) throws Exception;
     }
 
     @FunctionalInterface
     public interface PdfReaderVoidOperation {
-        void apply(PdfDocument doc) throws Exception;
+        void apply(PdfReader reader) throws Exception;
     }
 
     @FunctionalInterface
-    public interface PdfCopyOperation<T> {
-        T apply(PdfDocument src, PdfDocument dest) throws Exception;
+    public interface PdfStamperOperation<T> {
+        T apply(PdfReader reader, PdfStamper stamper) throws Exception;
     }
 
     @FunctionalInterface
-    public interface PdfCopyVoidOperation {
-        void apply(PdfDocument src, PdfDocument dest) throws Exception;
+    public interface PdfStamperVoidOperation {
+        void apply(PdfReader reader, PdfStamper stamper) throws Exception;
     }
 
     @FunctionalInterface

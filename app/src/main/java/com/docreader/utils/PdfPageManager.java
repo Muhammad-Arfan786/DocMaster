@@ -4,19 +4,21 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Environment;
 
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.kernel.utils.PdfMerger;
+import com.lowagie.text.Document;
+import com.lowagie.text.Image;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfCopy;
+import com.lowagie.text.pdf.PdfImportedPage;
+import com.lowagie.text.pdf.PdfName;
+import com.lowagie.text.pdf.PdfNumber;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
+import com.lowagie.text.pdf.PdfWriter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -27,8 +29,7 @@ import java.util.Locale;
 /**
  * Manager class for PDF page operations.
  * Supports delete, rotate, reorder, add, duplicate, extract, and merge operations.
- *
- * All methods use try-with-resources for proper resource cleanup.
+ * Uses OpenPDF library (LGPL license - free for commercial use).
  */
 public class PdfPageManager {
 
@@ -44,9 +45,12 @@ public class PdfPageManager {
      * Get the number of pages in the PDF
      */
     public int getPageCount() throws IOException {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument pdfDoc = new PdfDocument(reader)) {
-            return pdfDoc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            return reader.getNumberOfPages();
+        } finally {
+            if (reader != null) reader.close();
         }
     }
 
@@ -57,24 +61,38 @@ public class PdfPageManager {
      */
     public String deletePages(List<Integer> pageNumbers) throws IOException {
         String outputPath = generateOutputPath("deleted");
+        PdfReader reader = null;
+        Document document = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            int totalPages = reader.getNumberOfPages();
 
-            int totalPages = srcDoc.getNumberOfPages();
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = reader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
+
             for (int i = 1; i <= totalPages; i++) {
                 if (!pageNumbers.contains(i)) {
-                    srcDoc.copyPagesTo(i, i, destDoc);
+                    PdfImportedPage page = copy.getImportedPage(reader, i);
+                    copy.addPage(page);
                 }
             }
+
+            document.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to delete pages: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (reader != null) reader.close();
         }
-
-        return outputPath;
     }
 
     /**
@@ -85,24 +103,33 @@ public class PdfPageManager {
      */
     public String rotatePages(List<Integer> pageNumbers, int degrees) throws IOException {
         String outputPath = generateOutputPath("rotated");
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument pdfDoc = new PdfDocument(reader, writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputPath));
 
             for (int pageNum : pageNumbers) {
-                if (pageNum >= 1 && pageNum <= pdfDoc.getNumberOfPages()) {
-                    PdfPage page = pdfDoc.getPage(pageNum);
-                    int currentRotation = page.getRotation();
-                    page.setRotation((currentRotation + degrees) % 360);
+                if (pageNum >= 1 && pageNum <= reader.getNumberOfPages()) {
+                    int currentRotation = reader.getPageRotation(pageNum);
+                    reader.getPageN(pageNum).put(PdfName.ROTATE, new PdfNumber((currentRotation + degrees) % 360));
                 }
             }
+
+            stamper.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to rotate pages: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
-
-        return outputPath;
     }
 
     /**
@@ -110,22 +137,31 @@ public class PdfPageManager {
      */
     public String rotateAllPages(int degrees) throws IOException {
         String outputPath = generateOutputPath("rotated");
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument pdfDoc = new PdfDocument(reader, writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputPath));
 
-            for (int i = 1; i <= pdfDoc.getNumberOfPages(); i++) {
-                PdfPage page = pdfDoc.getPage(i);
-                int currentRotation = page.getRotation();
-                page.setRotation((currentRotation + degrees) % 360);
+            for (int i = 1; i <= reader.getNumberOfPages(); i++) {
+                int currentRotation = reader.getPageRotation(i);
+                reader.getPageN(i).put(PdfName.ROTATE, new PdfNumber((currentRotation + degrees) % 360));
             }
+
+            stamper.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to rotate pages: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
-
-        return outputPath;
     }
 
     /**
@@ -135,23 +171,36 @@ public class PdfPageManager {
      */
     public String reorderPages(List<Integer> newOrder) throws IOException {
         String outputPath = generateOutputPath("reordered");
+        PdfReader reader = null;
+        Document document = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = reader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
 
             for (int pageNum : newOrder) {
-                if (pageNum >= 1 && pageNum <= srcDoc.getNumberOfPages()) {
-                    srcDoc.copyPagesTo(pageNum, pageNum, destDoc);
+                if (pageNum >= 1 && pageNum <= reader.getNumberOfPages()) {
+                    PdfImportedPage page = copy.getImportedPage(reader, pageNum);
+                    copy.addPage(page);
                 }
             }
+
+            document.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to reorder pages: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (reader != null) reader.close();
         }
-
-        return outputPath;
     }
 
     /**
@@ -161,10 +210,13 @@ public class PdfPageManager {
      * @return Path to new PDF
      */
     public String movePage(int fromPage, int toPage) throws IOException {
+        PdfReader reader = null;
         int totalPages;
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument srcDoc = new PdfDocument(reader)) {
-            totalPages = srcDoc.getNumberOfPages();
+        try {
+            reader = new PdfReader(pdfPath);
+            totalPages = reader.getNumberOfPages();
+        } finally {
+            if (reader != null) reader.close();
         }
 
         List<Integer> newOrder = new ArrayList<>();
@@ -174,7 +226,6 @@ public class PdfPageManager {
             }
         }
 
-        // Insert at new position
         int insertIndex = toPage - 1;
         if (fromPage < toPage) {
             insertIndex = toPage - 2;
@@ -190,67 +241,69 @@ public class PdfPageManager {
     /**
      * Add a blank page at specified position
      * @param afterPage Page number after which to insert (0 for beginning)
-     * @param pageSize Size of new page (A4, LETTER, etc.)
+     * @param pageWidth Width of new page
+     * @param pageHeight Height of new page
      * @return Path to new PDF
      */
-    public String addBlankPage(int afterPage, PageSize pageSize) throws IOException {
+    public String addBlankPage(int afterPage, float pageWidth, float pageHeight) throws IOException {
         String outputPath = generateOutputPath("added");
+        String blankPagePath = null;
+        PdfReader reader = null;
+        PdfReader blankReader = null;
+        Document document = null;
+        FileOutputStream fos = null;
 
-        if (afterPage == 0) {
-            // Add blank page at beginning - requires two-step process
-            return addBlankPageAtBeginning(pageSize);
-        }
+        try {
+            // First, create a temporary blank page PDF
+            blankPagePath = generateOutputPath("blank_temp");
+            Rectangle pageSize = new Rectangle(pageWidth, pageHeight);
+            Document blankDoc = new Document(pageSize);
+            PdfWriter.getInstance(blankDoc, new FileOutputStream(blankPagePath));
+            blankDoc.open();
+            blankDoc.newPage();
+            blankDoc.close();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+            // Now read both the original and blank page PDFs
+            reader = new PdfReader(pdfPath);
+            blankReader = new PdfReader(blankPagePath);
+            int totalPages = reader.getNumberOfPages();
 
-            int totalPages = srcDoc.getNumberOfPages();
+            document = new Document(pageSize);
+            fos = new FileOutputStream(outputPath);
+            PdfCopy copy = new PdfCopy(document, fos);
+            document.open();
+
+            if (afterPage == 0) {
+                // Add blank page first
+                copy.addPage(copy.getImportedPage(blankReader, 1));
+            }
 
             for (int i = 1; i <= totalPages; i++) {
-                srcDoc.copyPagesTo(i, i, destDoc);
+                PdfImportedPage page = copy.getImportedPage(reader, i);
+                copy.addPage(page);
 
                 if (i == afterPage) {
-                    destDoc.addNewPage(pageSize);
+                    // Re-read blank page for each insertion
+                    copy.addPage(copy.getImportedPage(blankReader, 1));
                 }
             }
 
-            // If afterPage is greater than total, add at end
             if (afterPage > totalPages) {
-                destDoc.addNewPage(pageSize);
+                copy.addPage(copy.getImportedPage(blankReader, 1));
             }
+
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to add blank page: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (fos != null) try { fos.close(); } catch (Exception ignored) {}
+            if (reader != null) reader.close();
+            if (blankReader != null) blankReader.close();
+            if (blankPagePath != null) new File(blankPagePath).delete();
         }
-
-        return outputPath;
-    }
-
-    /**
-     * Helper method to add blank page at beginning
-     */
-    private String addBlankPageAtBeginning(PageSize pageSize) throws IOException {
-        String outputPath = generateOutputPath("added");
-
-        try (PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument destDoc = new PdfDocument(writer)) {
-
-            // Add blank page first
-            destDoc.addNewPage(pageSize);
-
-            // Then copy all existing pages
-            try (PdfReader reader = new PdfReader(pdfPath);
-                 PdfDocument srcDoc = new PdfDocument(reader)) {
-                srcDoc.copyPagesTo(1, srcDoc.getNumberOfPages(), destDoc);
-            }
-        } catch (Exception e) {
-            new File(outputPath).delete();
-            throw new IOException("Failed to add blank page: " + e.getMessage(), e);
-        }
-
-        return outputPath;
     }
 
     /**
@@ -260,28 +313,42 @@ public class PdfPageManager {
      */
     public String duplicatePage(int pageNumber) throws IOException {
         String outputPath = generateOutputPath("duplicated");
+        PdfReader reader = null;
+        Document document = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            int totalPages = reader.getNumberOfPages();
 
-            int totalPages = srcDoc.getNumberOfPages();
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = reader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
 
             for (int i = 1; i <= totalPages; i++) {
-                srcDoc.copyPagesTo(i, i, destDoc);
+                PdfImportedPage page = copy.getImportedPage(reader, i);
+                copy.addPage(page);
 
                 if (i == pageNumber) {
-                    // Copy the page again (duplicate)
-                    srcDoc.copyPagesTo(i, i, destDoc);
+                    // Duplicate the page
+                    PdfImportedPage dupPage = copy.getImportedPage(reader, i);
+                    copy.addPage(dupPage);
                 }
             }
+
+            document.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to duplicate page: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (reader != null) reader.close();
         }
-
-        return outputPath;
     }
 
     /**
@@ -291,23 +358,36 @@ public class PdfPageManager {
      */
     public String extractPages(List<Integer> pageNumbers) throws IOException {
         String outputPath = generateOutputPath("extracted");
+        PdfReader reader = null;
+        Document document = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = reader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
 
             for (int pageNum : pageNumbers) {
-                if (pageNum >= 1 && pageNum <= srcDoc.getNumberOfPages()) {
-                    srcDoc.copyPagesTo(pageNum, pageNum, destDoc);
+                if (pageNum >= 1 && pageNum <= reader.getNumberOfPages()) {
+                    PdfImportedPage page = copy.getImportedPage(reader, pageNum);
+                    copy.addPage(page);
                 }
             }
+
+            document.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to extract pages: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (reader != null) reader.close();
         }
-
-        return outputPath;
     }
 
     /**
@@ -316,31 +396,40 @@ public class PdfPageManager {
      */
     public List<String> splitAllPages() throws IOException {
         List<String> outputPaths = new ArrayList<>();
+        PdfReader reader = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument srcDoc = new PdfDocument(reader)) {
-
-            int totalPages = srcDoc.getNumberOfPages();
+        try {
+            reader = new PdfReader(pdfPath);
+            int totalPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= totalPages; i++) {
                 String outputPath = generateOutputPath("page_" + i);
 
-                try (PdfWriter writer = new PdfWriter(outputPath);
-                     PdfDocument destDoc = new PdfDocument(writer)) {
-                    srcDoc.copyPagesTo(i, i, destDoc);
-                }
+                // Get page size for this page (avoids PageSize class - uses java.awt.Color)
+                Rectangle pageSize = reader.getPageSize(i);
+                Rectangle docSize = new Rectangle(pageSize.getWidth(), pageSize.getHeight());
+                Document document = new Document(docSize);
+                PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+                document.open();
 
+                PdfImportedPage page = copy.getImportedPage(reader, i);
+                copy.addPage(page);
+
+                document.close();
                 outputPaths.add(outputPath);
             }
+
+            reader.close();
+            return outputPaths;
+
         } catch (Exception e) {
-            // Clean up any created files on failure
             for (String path : outputPaths) {
                 new File(path).delete();
             }
             throw new IOException("Failed to split pages: " + e.getMessage(), e);
+        } finally {
+            if (reader != null) reader.close();
         }
-
-        return outputPaths;
     }
 
     /**
@@ -361,23 +450,40 @@ public class PdfPageManager {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String outputPath = new File(outputDir, outputName + "_merged_" + timestamp + ".pdf").getAbsolutePath();
 
-        try (PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument mergedDoc = new PdfDocument(writer)) {
+        Document document = null;
+        List<PdfReader> openedReaders = new ArrayList<>();
+        try {
+            // Get page size from first PDF (avoids PageSize class - uses java.awt.Color)
+            PdfReader firstReader = new PdfReader(pdfPaths.get(0));
+            Rectangle firstSize = firstReader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            firstReader.close();
 
-            PdfMerger merger = new PdfMerger(mergedDoc);
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
 
             for (String pdfPath : pdfPaths) {
-                try (PdfReader reader = new PdfReader(pdfPath);
-                     PdfDocument srcDoc = new PdfDocument(reader)) {
-                    merger.merge(srcDoc, 1, srcDoc.getNumberOfPages());
+                PdfReader reader = new PdfReader(pdfPath);
+                openedReaders.add(reader);
+                int pageCount = reader.getNumberOfPages();
+
+                for (int i = 1; i <= pageCount; i++) {
+                    PdfImportedPage page = copy.getImportedPage(reader, i);
+                    copy.addPage(page);
                 }
+                reader.close();
             }
+
+            document.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to merge PDFs: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
         }
-
-        return outputPath;
     }
 
     /**
@@ -388,88 +494,127 @@ public class PdfPageManager {
      */
     public String addImageAsPage(String imagePath, int afterPage) throws IOException {
         String outputPath = generateOutputPath("with_image");
+        PdfReader reader = null;
+        Document document = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            int totalPages = reader.getNumberOfPages();
 
-            int totalPages = srcDoc.getNumberOfPages();
+            Image image = Image.getInstance(imagePath);
+            float imageWidth = image.getWidth();
+            float imageHeight = image.getHeight();
+            Rectangle imagePageSize = new Rectangle(imageWidth, imageHeight);
 
-            // Load image
-            ImageData imageData = ImageDataFactory.create(imagePath);
-            float imageWidth = imageData.getWidth();
-            float imageHeight = imageData.getHeight();
-
-            // Create page size based on image dimensions
-            PageSize pageSize = new PageSize(imageWidth, imageHeight);
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = reader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
+            document = new Document(docSize);
+            PdfCopy copy = new PdfCopy(document, new FileOutputStream(outputPath));
+            document.open();
 
             if (afterPage == 0) {
-                // Add image page first
-                PdfPage imagePage = destDoc.addNewPage(pageSize);
-                PdfCanvas canvas = new PdfCanvas(imagePage);
-                canvas.addImageAt(imageData, 0, 0, false);
+                // Create image page first
+                Document imgDoc = new Document(imagePageSize);
+                String tempPath = outputPath + ".temp";
+                PdfWriter imgWriter = PdfWriter.getInstance(imgDoc, new FileOutputStream(tempPath));
+                imgDoc.open();
+                image.setAbsolutePosition(0, 0);
+                imgDoc.add(image);
+                imgDoc.close();
+
+                PdfReader imgReader = new PdfReader(tempPath);
+                copy.addPage(copy.getImportedPage(imgReader, 1));
+                imgReader.close();
+                new File(tempPath).delete();
             }
 
             for (int i = 1; i <= totalPages; i++) {
-                srcDoc.copyPagesTo(i, i, destDoc);
+                PdfImportedPage page = copy.getImportedPage(reader, i);
+                copy.addPage(page);
 
                 if (i == afterPage) {
-                    PdfPage imagePage = destDoc.addNewPage(pageSize);
-                    PdfCanvas canvas = new PdfCanvas(imagePage);
-                    canvas.addImageAt(imageData, 0, 0, false);
+                    Document imgDoc = new Document(imagePageSize);
+                    String tempPath = outputPath + ".temp";
+                    PdfWriter imgWriter = PdfWriter.getInstance(imgDoc, new FileOutputStream(tempPath));
+                    imgDoc.open();
+                    image.setAbsolutePosition(0, 0);
+                    imgDoc.add(image);
+                    imgDoc.close();
+
+                    PdfReader imgReader = new PdfReader(tempPath);
+                    copy.addPage(copy.getImportedPage(imgReader, 1));
+                    imgReader.close();
+                    new File(tempPath).delete();
                 }
             }
 
             if (afterPage == -1 || afterPage > totalPages) {
-                PdfPage imagePage = destDoc.addNewPage(pageSize);
-                PdfCanvas canvas = new PdfCanvas(imagePage);
-                canvas.addImageAt(imageData, 0, 0, false);
+                Document imgDoc = new Document(imagePageSize);
+                String tempPath = outputPath + ".temp";
+                PdfWriter imgWriter = PdfWriter.getInstance(imgDoc, new FileOutputStream(tempPath));
+                imgDoc.open();
+                image.setAbsolutePosition(0, 0);
+                imgDoc.add(image);
+                imgDoc.close();
+
+                PdfReader imgReader = new PdfReader(tempPath);
+                copy.addPage(copy.getImportedPage(imgReader, 1));
+                imgReader.close();
+                new File(tempPath).delete();
             }
+
+            document.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to add image as page: " + e.getMessage(), e);
+        } finally {
+            if (document != null && document.isOpen()) document.close();
+            if (reader != null) reader.close();
         }
-
-        return outputPath;
     }
 
     /**
      * Add an image to an existing page
-     * @param pageNumber Page to add image to (1-based)
-     * @param imagePath Path to image
-     * @param x X position
-     * @param y Y position
-     * @param width Desired width (0 for original)
-     * @param height Desired height (0 for original)
-     * @return Path to new PDF
      */
     public String addImageToPage(int pageNumber, String imagePath, float x, float y,
                                   float width, float height) throws IOException {
         String outputPath = generateOutputPath("image_added");
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument pdfDoc = new PdfDocument(reader, writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputPath));
 
-            if (pageNumber >= 1 && pageNumber <= pdfDoc.getNumberOfPages()) {
-                PdfPage page = pdfDoc.getPage(pageNumber);
-                PdfCanvas canvas = new PdfCanvas(page);
+            if (pageNumber >= 1 && pageNumber <= reader.getNumberOfPages()) {
+                Image image = Image.getInstance(imagePath);
 
-                ImageData imageData = ImageDataFactory.create(imagePath);
+                float imgWidth = width > 0 ? width : image.getWidth();
+                float imgHeight = height > 0 ? height : image.getHeight();
+                image.scaleAbsolute(imgWidth, imgHeight);
+                image.setAbsolutePosition(x, y);
 
-                float imgWidth = width > 0 ? width : imageData.getWidth();
-                float imgHeight = height > 0 ? height : imageData.getHeight();
-
-                canvas.addImageFittedIntoRectangle(imageData,
-                        new Rectangle(x, y, imgWidth, imgHeight), false);
+                PdfContentByte content = stamper.getOverContent(pageNumber);
+                content.addImage(image);
             }
+
+            stamper.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to add image to page: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
-
-        return outputPath;
     }
 
     /**
@@ -478,60 +623,77 @@ public class PdfPageManager {
     public String addBitmapToPage(int pageNumber, Bitmap bitmap, float x, float y,
                                    float width, float height) throws IOException {
         String outputPath = generateOutputPath("image_added");
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument pdfDoc = new PdfDocument(reader, writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputPath));
 
-            if (pageNumber >= 1 && pageNumber <= pdfDoc.getNumberOfPages()) {
-                PdfPage page = pdfDoc.getPage(pageNumber);
-                Rectangle pageSize = page.getPageSize();
-                PdfCanvas canvas = new PdfCanvas(page);
+            if (pageNumber >= 1 && pageNumber <= reader.getNumberOfPages()) {
+                Rectangle pageSize = reader.getPageSize(pageNumber);
 
-                try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-                    byte[] bitmapData = stream.toByteArray();
+                ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+                byte[] bitmapData = stream.toByteArray();
+                stream.close();
 
-                    ImageData imageData = ImageDataFactory.create(bitmapData);
+                Image image = Image.getInstance(bitmapData);
 
-                    float imgWidth = width > 0 ? width : imageData.getWidth();
-                    float imgHeight = height > 0 ? height : imageData.getHeight();
+                float imgWidth = width > 0 ? width : image.getWidth();
+                float imgHeight = height > 0 ? height : image.getHeight();
+                image.scaleAbsolute(imgWidth, imgHeight);
 
-                    // Convert from top-left to bottom-left coordinates
-                    float pdfY = pageSize.getHeight() - y - imgHeight;
+                // Convert from top-left to bottom-left coordinates
+                float pdfY = pageSize.getHeight() - y - imgHeight;
+                image.setAbsolutePosition(x, pdfY);
 
-                    canvas.addImageFittedIntoRectangle(imageData,
-                            new Rectangle(x, pdfY, imgWidth, imgHeight), false);
-                }
+                PdfContentByte content = stamper.getOverContent(pageNumber);
+                content.addImage(image);
             }
+
+            stamper.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to add bitmap to page: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
-
-        return outputPath;
     }
 
     /**
-     * Compress PDF by setting maximum compression level
+     * Compress PDF by copying with full compression
      * @return Path to compressed PDF
      */
     public String compressPdf() throws IOException {
         String outputPath = generateOutputPath("compressed");
+        PdfReader reader = null;
+        PdfStamper stamper = null;
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfWriter writer = new PdfWriter(outputPath);
-             PdfDocument srcDoc = new PdfDocument(reader);
-             PdfDocument destDoc = new PdfDocument(writer)) {
+        try {
+            reader = new PdfReader(pdfPath);
+            stamper = new PdfStamper(reader, new FileOutputStream(outputPath));
+            stamper.setFullCompression();
 
-            writer.setCompressionLevel(9);
-            srcDoc.copyPagesTo(1, srcDoc.getNumberOfPages(), destDoc);
+            stamper.close();
+            reader.close();
+            return outputPath;
+
         } catch (Exception e) {
             new File(outputPath).delete();
             throw new IOException("Failed to compress PDF: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (stamper != null) stamper.close();
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {}
         }
-
-        return outputPath;
     }
 
     /**

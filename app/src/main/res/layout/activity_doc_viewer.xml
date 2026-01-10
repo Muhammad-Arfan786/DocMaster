@@ -4,13 +4,15 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="?android:windowBackground"
     tools:context=".activities.DocViewerActivity">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/primary">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
@@ -19,6 +21,7 @@
             android:background="@color/primary"
             app:navigationIcon="@drawable/ic_back"
             app:navigationIconTint="@android:color/white"
+            app:navigationContentDescription="@string/cd_navigate_back"
             app:titleTextColor="@android:color/white"
             app:menu="@menu/menu_doc_editor" />
 
@@ -92,27 +95,29 @@
             <!-- Decrease Font Size -->
             <ImageButton
                 android:id="@+id/btnFontSmaller"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="@dimen/bottom_bar_button_size"
+                android:layout_height="@dimen/bottom_bar_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_text_decrease"
+                android:contentDescription="@string/cd_font_smaller"
                 app:tint="?android:textColorPrimary" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Font Size"
-                android:textSize="14sp"
-                android:layout_marginHorizontal="16dp"
+                android:textAppearance="@style/TextAppearance.TenDocmas.Subtitle"
+                android:layout_marginHorizontal="@dimen/spacing_large"
                 android:textColor="?android:textColorPrimary" />
 
             <!-- Increase Font Size -->
             <ImageButton
                 android:id="@+id/btnFontLarger"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="@dimen/bottom_bar_button_size"
+                android:layout_height="@dimen/bottom_bar_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_text_increase"
+                android:contentDescription="@string/cd_font_larger"
                 app:tint="?android:textColorPrimary" />
 
             <View

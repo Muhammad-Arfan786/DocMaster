@@ -10,17 +10,12 @@ import android.graphics.Typeface;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Image;
+import com.lowagie.text.Document;
+import com.lowagie.text.Image;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -98,15 +93,14 @@ public class PdfCopyEditor {
     public static List<PageData> extractPages(String pdfPath) throws Exception {
         List<PageData> pages = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-
-            int numPages = doc.getNumberOfPages();
+        PdfReader reader = new PdfReader(pdfPath);
+        try {
+            int numPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= numPages; i++) {
-                PdfPage page = doc.getPage(i);
-                Rectangle rect = page.getPageSize();
-                String text = PdfTextExtractor.getTextFromPage(page);
+                Rectangle rect = reader.getPageSize(i);
+                PdfTextExtractor extractor = new PdfTextExtractor(reader);
+                String text = extractor.getTextFromPage(i);
 
                 PageData pageData = new PageData(i, rect.getWidth(), rect.getHeight(), text);
 
@@ -131,6 +125,8 @@ public class PdfCopyEditor {
 
                 pages.add(pageData);
             }
+        } finally {
+            reader.close();
         }
 
         return pages;
@@ -151,7 +147,7 @@ public class PdfCopyEditor {
 
         ParcelFileDescriptor fd = null;
         PdfRenderer renderer = null;
-        PdfDocument pdfDoc = null;
+        Document document = null;
 
         try {
             // Open original PDF for rendering
@@ -160,22 +156,26 @@ public class PdfCopyEditor {
             renderer = new PdfRenderer(fd);
             int pageCount = renderer.getPageCount();
 
-            // Also open with iText to get original page sizes and text
-            PdfDocument originalDoc = new PdfDocument(new PdfReader(inputPdfPath));
+            // Also open with OpenPDF to get original page sizes and text
+            PdfReader originalReader = new PdfReader(inputPdfPath);
+
+            // Get first page size (avoids PageSize class - uses java.awt.Color)
+            Rectangle firstSize = originalReader.getPageSize(1);
+            Rectangle docSize = new Rectangle(firstSize.getWidth(), firstSize.getHeight());
 
             // Create output PDF
-            PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-            pdfDoc = new PdfDocument(writer);
-            Document document = new Document(pdfDoc);
+            document = new Document(docSize);
+            PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(outputFile));
+            document.open();
 
             // Process each page
             for (int i = 0; i < pageCount; i++) {
                 int pageNum = i + 1;
 
                 // Get original page size
-                PdfPage origPage = originalDoc.getPage(pageNum);
-                float origWidth = origPage.getPageSize().getWidth();
-                float origHeight = origPage.getPageSize().getHeight();
+                Rectangle origPageSize = originalReader.getPageSize(pageNum);
+                float origWidth = origPageSize.getWidth();
+                float origHeight = origPageSize.getHeight();
 
                 // Render page as high-res image
                 PdfRenderer.Page page = renderer.openPage(i);
@@ -201,7 +201,8 @@ public class PdfCopyEditor {
 
                 // Check if this page has edits
                 if (pageEdits != null && pageEdits.containsKey(pageNum)) {
-                    String originalText = PdfTextExtractor.getTextFromPage(origPage);
+                    PdfTextExtractor extractor = new PdfTextExtractor(originalReader);
+                    String originalText = extractor.getTextFromPage(pageNum);
                     String editedText = pageEdits.get(pageNum);
 
                     if (!editedText.equals(originalText)) {
@@ -216,34 +217,34 @@ public class PdfCopyEditor {
                 byte[] imageBytes = baos.toByteArray();
                 bitmap.recycle();
 
-                ImageData imageData = ImageDataFactory.create(imageBytes);
-                Image pdfImage = new Image(imageData);
+                Image pdfImage = Image.getInstance(imageBytes);
 
                 // Set page size to match original exactly
-                PageSize pageSize = new PageSize(origWidth, origHeight);
-                pdfDoc.addNewPage(pageSize);
+                document.setPageSize(new Rectangle(origWidth, origHeight));
+                document.newPage();
 
                 // Position image to fill page exactly
-                pdfImage.setFixedPosition(pageNum, 0, 0);
+                pdfImage.setAbsolutePosition(0, 0);
                 pdfImage.scaleToFit(origWidth, origHeight);
 
                 document.add(pdfImage);
             }
 
-            originalDoc.close();
-            document.close();
+            originalReader.close();
 
             return outputFile;
 
+        } catch (Exception e) {
+            throw new IOException("Failed to create edited PDF copy", e);
         } finally {
+            if (document != null && document.isOpen()) {
+                document.close();
+            }
             if (renderer != null) {
                 renderer.close();
             }
             if (fd != null) {
                 fd.close();
-            }
-            if (pdfDoc != null && !pdfDoc.isClosed()) {
-                pdfDoc.close();
             }
         }
     }
@@ -373,16 +374,22 @@ public class PdfCopyEditor {
      * Get text content of a specific page
      */
     public static String getPageText(String pdfPath, int pageNumber) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber < 1 || pageNumber > doc.getNumberOfPages()) {
+            if (pageNumber < 1 || pageNumber > reader.getNumberOfPages()) {
                 return "";
             }
 
-            return PdfTextExtractor.getTextFromPage(doc.getPage(pageNumber));
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            return extractor.getTextFromPage(pageNumber);
         } catch (Exception e) {
             return "";
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 
@@ -392,22 +399,27 @@ public class PdfCopyEditor {
     public static String getAllText(String pdfPath) {
         StringBuilder sb = new StringBuilder();
 
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-
-            int numPages = doc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            int numPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= numPages; i++) {
                 if (numPages > 1) {
                     sb.append("[PAGE:").append(i).append("]\n");
                 }
-                sb.append(PdfTextExtractor.getTextFromPage(doc.getPage(i)));
+                PdfTextExtractor extractor = new PdfTextExtractor(reader);
+                sb.append(extractor.getTextFromPage(i));
                 if (i < numPages) {
                     sb.append("\n");
                 }
             }
         } catch (Exception e) {
             AppLogger.e("PdfCopyEditor", "Error getting all text", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
 
         return sb.toString();
@@ -445,11 +457,16 @@ public class PdfCopyEditor {
      * Get page count of PDF
      */
     public static int getPageCount(String pdfPath) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument doc = new PdfDocument(reader)) {
-            return doc.getNumberOfPages();
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
+            return reader.getNumberOfPages();
         } catch (Exception e) {
             return 0;
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
     }
 }

@@ -1,16 +1,14 @@
 package com.docreader.utils;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.AreaBreak;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.properties.AreaBreakType;
-import com.itextpdf.layout.properties.TextAlignment;
+import com.lowagie.text.Document;
+import com.lowagie.text.Element;
+import com.lowagie.text.Font;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfWriter;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -21,7 +19,7 @@ import java.util.regex.Pattern;
 
 /**
  * Utility class to convert text/Word content back to PDF format.
- * Uses iText7 to create PDF documents from text content.
+ * Uses OpenPDF to create PDF documents from text content.
  * Preserves line breaks and page structure.
  */
 public class WordToPdfConverter {
@@ -48,15 +46,19 @@ public class WordToPdfConverter {
         }
         File pdfFile = new File(outputDir, pdfFileName);
 
-        try (FileOutputStream fos = new FileOutputStream(pdfFile);
-             PdfWriter writer = new PdfWriter(fos);
-             PdfDocument pdfDocument = new PdfDocument(writer);
-             Document document = new Document(pdfDocument, PageSize.A4)) {
-
-            document.setMargins(margin, margin, margin, margin);
+        Document document = null;
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(pdfFile);
+            // Use Constants to avoid PageSize class (requires java.awt.Color not available on Android)
+            Rectangle a4Size = new Rectangle(Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4);
+            document = new Document(a4Size, margin, margin, margin, margin);
+            PdfWriter.getInstance(document, fos);
+            document.open();
 
             // Use a standard font that supports more characters
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            BaseFont baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            Font font = new Font(baseFont, fontSize);
 
             // Check if text has page markers
             if (text.contains("[PAGE:")) {
@@ -69,6 +71,13 @@ public class WordToPdfConverter {
                 // Simple text conversion - preserve each line
                 convertSimpleText(document, text, font, fontSize);
             }
+        } finally {
+            if (document != null && document.isOpen()) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         }
 
         return pdfFile;
@@ -77,32 +86,37 @@ public class WordToPdfConverter {
     /**
      * Convert structured text with [PAGE:n] markers
      */
-    private static void convertStructuredText(Document document, String text, PdfFont font, float fontSize) {
-        Pattern pagePattern = Pattern.compile("\\[PAGE:(\\d+)\\]");
+    private static void convertStructuredText(Document document, String text, Font font, float fontSize) throws Exception {
         String[] parts = text.split("\\[PAGE:\\d+\\]");
 
         boolean firstPage = true;
-        for (int i = 1; i < parts.length; i++) {
+
+        // Process all parts including content before first marker (index 0)
+        for (int i = 0; i < parts.length; i++) {
+            String pageContent = parts[i].trim();
+            if (pageContent.isEmpty()) continue;
+
             if (!firstPage) {
-                document.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                document.newPage();
             }
             firstPage = false;
 
-            String pageContent = parts[i].trim();
             addTextPreservingLines(document, pageContent, font, fontSize);
         }
 
-        // Handle case where there are no page markers (single page or no markers)
-        if (parts.length <= 1 && !text.trim().isEmpty()) {
+        // Handle case where text is empty after processing
+        if (firstPage && !text.trim().isEmpty()) {
             String content = text.replaceAll("\\[PAGE:\\d+\\]", "").trim();
-            addTextPreservingLines(document, content, font, fontSize);
+            if (!content.isEmpty()) {
+                addTextPreservingLines(document, content, font, fontSize);
+            }
         }
     }
 
     /**
      * Convert text with visual === PAGE n === markers
      */
-    private static void convertWithPageMarkers(Document document, String text, PdfFont font, float fontSize) {
+    private static void convertWithPageMarkers(Document document, String text, Font font, float fontSize) throws Exception {
         String[] pages = text.split("=== PAGE \\d+ ===");
 
         boolean firstPage = true;
@@ -110,7 +124,7 @@ public class WordToPdfConverter {
             if (pageContent.trim().isEmpty()) continue;
 
             if (!firstPage) {
-                document.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                document.newPage();
             }
             firstPage = false;
 
@@ -121,28 +135,27 @@ public class WordToPdfConverter {
     /**
      * Simple text conversion preserving line breaks
      */
-    private static void convertSimpleText(Document document, String text, PdfFont font, float fontSize) {
+    private static void convertSimpleText(Document document, String text, Font font, float fontSize) throws Exception {
         addTextPreservingLines(document, text, font, fontSize);
     }
 
     /**
      * Add text to document preserving line breaks
      */
-    private static void addTextPreservingLines(Document document, String text, PdfFont font, float fontSize) {
+    private static void addTextPreservingLines(Document document, String text, Font font, float fontSize) throws Exception {
         String[] lines = text.split("\n");
 
         for (String line : lines) {
-            Paragraph paragraph = new Paragraph()
-                    .setFont(font)
-                    .setFontSize(fontSize)
-                    .setTextAlignment(TextAlignment.LEFT)
-                    .setMarginTop(0)
-                    .setMarginBottom(2);
+            Paragraph paragraph = new Paragraph();
+            paragraph.setFont(font);
+            paragraph.setAlignment(Element.ALIGN_LEFT);
+            paragraph.setSpacingBefore(0);
+            paragraph.setSpacingAfter(2);
 
             if (line.trim().isEmpty()) {
                 // Add small spacing for empty lines
                 paragraph.add(" ");
-                paragraph.setMarginBottom(fontSize * 0.5f);
+                paragraph.setSpacingAfter(fontSize * 0.5f);
             } else {
                 paragraph.add(line);
             }
@@ -183,27 +196,35 @@ public class WordToPdfConverter {
         File pdfFile = new File(outputDir, pdfFileName);
 
         // Get original PDF page sizes
-        List<PageSize> pageSizes = new ArrayList<>();
-        try (com.itextpdf.kernel.pdf.PdfReader reader = new com.itextpdf.kernel.pdf.PdfReader(originalPdfPath);
-             PdfDocument originalDoc = new PdfDocument(reader)) {
-            for (int i = 1; i <= originalDoc.getNumberOfPages(); i++) {
-                com.itextpdf.kernel.geom.Rectangle rect = originalDoc.getPage(i).getPageSize();
-                pageSizes.add(new PageSize(rect));
+        List<Rectangle> pageSizes = new ArrayList<>();
+        PdfReader originalReader = null;
+        try {
+            originalReader = new PdfReader(originalPdfPath);
+            for (int i = 1; i <= originalReader.getNumberOfPages(); i++) {
+                Rectangle rect = originalReader.getPageSize(i);
+                pageSizes.add(rect);
             }
         } catch (Exception e) {
-            // If we can't read original, use A4
-            pageSizes.add(PageSize.A4);
+            // If we can't read original, use A4 (avoid PageSize class - uses java.awt.Color)
+            pageSizes.add(new Rectangle(Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4));
+        } finally {
+            if (originalReader != null) {
+                try { originalReader.close(); } catch (Exception ignored) {}
+            }
         }
 
-        try (FileOutputStream fos = new FileOutputStream(pdfFile);
-             PdfWriter writer = new PdfWriter(fos);
-             PdfDocument pdfDocument = new PdfDocument(writer)) {
+        Document document = null;
+        FileOutputStream fos = null;
+        try {
+            Rectangle defaultA4 = new Rectangle(Constants.PAGE_WIDTH_A4, Constants.PAGE_HEIGHT_A4);
+            Rectangle firstPageSize = pageSizes.isEmpty() ? defaultA4 : pageSizes.get(0);
+            fos = new FileOutputStream(pdfFile);
+            document = new Document(firstPageSize, 36, 36, 36, 36);
+            PdfWriter.getInstance(document, fos);
+            document.open();
 
-            PageSize firstPageSize = pageSizes.isEmpty() ? PageSize.A4 : pageSizes.get(0);
-            Document document = new Document(pdfDocument, firstPageSize);
-            document.setMargins(36, 36, 36, 36);
-
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            BaseFont baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            Font font = new Font(baseFont, 11f);
             float fontSize = 11f;
 
             // Parse pages from text
@@ -214,9 +235,10 @@ public class WordToPdfConverter {
                 for (int i = 1; i < parts.length; i++) {
                     if (pageIndex > 0) {
                         // Use original page size if available
-                        PageSize pageSize = pageIndex < pageSizes.size() ?
-                                pageSizes.get(pageIndex) : PageSize.A4;
-                        document.add(new AreaBreak(pageSize));
+                        Rectangle pageSize = pageIndex < pageSizes.size() ?
+                                pageSizes.get(pageIndex) : defaultA4;
+                        document.setPageSize(pageSize);
+                        document.newPage();
                     }
 
                     String pageContent = parts[i].trim();
@@ -226,8 +248,13 @@ public class WordToPdfConverter {
             } else {
                 addTextPreservingLines(document, text, font, fontSize);
             }
-
-            document.close();
+        } finally {
+            if (document != null && document.isOpen()) {
+                try { document.close(); } catch (Exception ignored) {}
+            }
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         }
 
         return pdfFile;

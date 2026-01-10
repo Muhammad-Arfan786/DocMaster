@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base Widget Style (required for dot notation hierarchy) -->
+    <style name="Widget.TenDocmas" parent="android:Widget" />
+
+    <!-- Tool Item Style (for main screen tools grid) -->
+    <style name="Widget.TenDocmas.ToolItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">@dimen/tool_padding</item>
+        <item name="android:background">@drawable/bg_tool_item</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Tool Icon Container (circular background) -->
+    <style name="Widget.TenDocmas.ToolIconContainer">
+        <item name="android:layout_width">@dimen/tool_icon_container</item>
+        <item name="android:layout_height">@dimen/tool_icon_container</item>
+        <item name="android:background">@drawable/bg_tool_icon_circle</item>
+    </style>
+
+    <!-- Tool Icon -->
+    <style name="Widget.TenDocmas.ToolIcon">
+        <item name="android:layout_width">@dimen/tool_icon_size</item>
+        <item name="android:layout_height">@dimen/tool_icon_size</item>
+        <item name="android:layout_gravity">center</item>
+    </style>
+
+    <!-- Editor Grid Item Style (for bottom sheet) -->
+    <style name="Widget.TenDocmas.EditorGridItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">@dimen/editor_grid_item_padding</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Editor Grid Icon -->
+    <style name="Widget.TenDocmas.EditorGridIcon">
+        <item name="android:layout_width">@dimen/editor_grid_icon_size</item>
+        <item name="android:layout_height">@dimen/editor_grid_icon_size</item>
+        <item name="tint">@color/primary</item>
+    </style>
+
+    <!-- Color Button (48dp touch target) -->
+    <style name="Widget.TenDocmas.ColorButton">
+        <item name="android:layout_width">@dimen/color_button_size</item>
+        <item name="android:layout_height">@dimen/color_button_size</item>
+        <item name="android:layout_marginEnd">@dimen/spacing_small</item>
+        <item name="android:padding">@dimen/spacing_medium</item>
+    </style>
+
+    <!-- Editor Tool Button (48dp touch target) -->
+    <style name="Widget.TenDocmas.EditorToolButton">
+        <item name="android:layout_width">@dimen/editor_tool_button_size</item>
+        <item name="android:layout_height">@dimen/editor_tool_button_size</item>
+        <item name="android:layout_marginEnd">@dimen/spacing_small</item>
+        <item name="android:background">@drawable/bg_tool_button</item>
+        <item name="android:padding">@dimen/spacing_medium</item>
+        <item name="tint">@color/icon_white</item>
+    </style>
+
+    <!-- Bottom Bar Button -->
+    <style name="Widget.TenDocmas.BottomBarButton">
+        <item name="android:layout_width">@dimen/bottom_bar_button_size</item>
+        <item name="android:layout_height">@dimen/bottom_bar_button_size</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="tint">?android:textColorPrimary</item>
+    </style>
+
+    <!-- Section Header Row -->
+    <style name="Widget.TenDocmas.SectionHeader">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingHorizontal">@dimen/spacing_small</item>
+        <item name="android:layout_marginBottom">@dimen/section_header_margin</item>
+    </style>
+
+    <!-- Section Header Icon -->
+    <style name="Widget.TenDocmas.SectionHeaderIcon">
+        <item name="android:layout_width">@dimen/section_header_icon</item>
+        <item name="android:layout_height">@dimen/section_header_icon</item>
+        <item name="tint">@color/primary</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <!-- Card Style -->
+    <style name="Widget.TenDocmas.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">@dimen/card_corner_radius</item>
+        <item name="cardElevation">2dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <!-- Toolbar Divider -->
+    <style name="Widget.TenDocmas.ToolbarDivider">
+        <item name="android:layout_width">@dimen/divider_thickness</item>
+        <item name="android:layout_height">@dimen/divider_height</item>
+        <item name="android:layout_marginEnd">@dimen/spacing_medium</item>
+        <item name="android:background">@android:color/darker_gray</item>
+    </style>
+
+    <!-- Bottom Sheet Handle -->
+    <style name="Widget.TenDocmas.BottomSheetHandle">
+        <item name="android:layout_width">@dimen/bottom_sheet_handle_width</item>
+        <item name="android:layout_height">@dimen/bottom_sheet_handle_height</item>
+        <item name="android:layout_gravity">center_horizontal</item>
+        <item name="android:layout_marginTop">@dimen/spacing_medium</item>
+        <item name="android:layout_marginBottom">@dimen/spacing_large</item>
+        <item name="android:background">@drawable/bg_bottom_sheet_handle</item>
+    </style>
+
+    <!-- Recent File Item -->
+    <style name="Widget.TenDocmas.RecentFileItem">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:padding">@dimen/card_padding</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Remove Button (in recent files) -->
+    <style name="Widget.TenDocmas.RemoveButton">
+        <item name="android:layout_width">@dimen/touch_target_min</item>
+        <item name="android:layout_height">@dimen/touch_target_min</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:padding">@dimen/spacing_medium</item>
+        <item name="tint">@color/icon_secondary</item>
+    </style>
+</resources>

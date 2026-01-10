@@ -1,19 +1,10 @@
 package com.docreader.utils;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.layout.Canvas;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.properties.TextAlignment;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -70,37 +61,42 @@ public class PdfTextEditor {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
 
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
+
+            BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
             for (TextAnnotation annotation : annotations) {
-                if (annotation.pageNumber > 0 && annotation.pageNumber <= pdfDocument.getNumberOfPages()) {
-                    PdfPage page = pdfDocument.getPage(annotation.pageNumber);
-                    Rectangle pageSize = page.getPageSize();
+                if (annotation.pageNumber > 0 && annotation.pageNumber <= reader.getNumberOfPages()) {
+                    PdfContentByte canvas = stamper.getOverContent(annotation.pageNumber);
 
-                    PdfCanvas pdfCanvas = new PdfCanvas(page);
-
-                    // Convert Android color to iText color
+                    // Convert Android color to RGB components
                     int red = (annotation.color >> 16) & 0xFF;
                     int green = (annotation.color >> 8) & 0xFF;
                     int blue = annotation.color & 0xFF;
-                    DeviceRgb color = new DeviceRgb(red, green, blue);
 
-                    // Create canvas for text
-                    try (Canvas canvas = new Canvas(pdfCanvas, pageSize)) {
-                        Paragraph paragraph = new Paragraph(annotation.text)
-                                .setFont(font)
-                                .setFontSize(annotation.fontSize)
-                                .setFontColor(color);
-
-                        // Position text at the specified coordinates
-                        canvas.showTextAligned(paragraph, annotation.x, annotation.y, TextAlignment.LEFT);
-                    }
+                    canvas.saveState();
+                    canvas.beginText();
+                    canvas.setFontAndSize(font, annotation.fontSize);
+                    canvas.setRGBColorFill(red, green, blue);
+                    canvas.setTextMatrix(annotation.x, annotation.y);
+                    // Use raw PDF operators to avoid AWT dependencies
+                    String escaped = escapePdfString(annotation.text);
+                    canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
+                    canvas.endText();
+                    canvas.restoreState();
                 }
             }
+        } finally {
+            if (stamper != null) try { stamper.close(); } catch (Exception ignored) {}
+            if (reader != null) try { reader.close(); } catch (Exception ignored) {}
+            if (fos != null) try { fos.close(); } catch (Exception ignored) {}
         }
 
         return outputFile;
@@ -137,17 +133,33 @@ public class PdfTextEditor {
      * @return float array [width, height] or null if error
      */
     public static float[] getPageDimensions(String pdfPath, int pageNumber) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                Rectangle pageSize = page.getPageSize();
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                Rectangle pageSize = reader.getPageSize(pageNumber);
                 return new float[]{pageSize.getWidth(), pageSize.getHeight()};
             }
         } catch (Exception e) {
             AppLogger.e("PdfTextEditor", "Error", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
         return null;
+    }
+
+    /**
+     * Escape special characters for PDF string literal.
+     */
+    private static String escapePdfString(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("(", "\\(")
+                   .replace(")", "\\)")
+                   .replace("\r", "\\r")
+                   .replace("\n", "\\n");
     }
 }

@@ -9,6 +9,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_privacy_policy"
+        android:title="@string/privacy_policy"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_about"
         android:title="@string/about"
         app:showAsAction="never" />

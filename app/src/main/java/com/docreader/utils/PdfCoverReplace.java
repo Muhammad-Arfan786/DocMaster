@@ -2,21 +2,11 @@ package com.docreader.utils;
 
 import android.graphics.RectF;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceRgb;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.layout.Canvas;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.VerticalAlignment;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -78,51 +68,66 @@ public class PdfCoverReplace {
         }
         File outputFile = new File(outputDir, pdfFileName);
 
-        try (PdfReader reader = new PdfReader(sourcePdfPath);
-             PdfWriter writer = new PdfWriter(new FileOutputStream(outputFile));
-             PdfDocument pdfDocument = new PdfDocument(reader, writer)) {
+        PdfReader reader = null;
+        PdfStamper stamper = null;
+        FileOutputStream fos = null;
 
-            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+        try {
+            reader = new PdfReader(sourcePdfPath);
+            fos = new FileOutputStream(outputFile);
+            stamper = new PdfStamper(reader, fos);
+
+            BaseFont font = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
 
             for (EditOperation edit : edits) {
-                if (edit.pageNumber > 0 && edit.pageNumber <= pdfDocument.getNumberOfPages()) {
-                    PdfPage page = pdfDocument.getPage(edit.pageNumber);
-                    PdfCanvas pdfCanvas = new PdfCanvas(page);
+                if (edit.pageNumber > 0 && edit.pageNumber <= reader.getNumberOfPages()) {
+                    PdfContentByte canvas = stamper.getOverContent(edit.pageNumber);
 
                     // Step 1: Draw white rectangle to cover existing content
-                    pdfCanvas.saveState();
-                    pdfCanvas.setFillColor(ColorConstants.WHITE);
-                    pdfCanvas.rectangle(edit.x, edit.y, edit.width, edit.height);
-                    pdfCanvas.fill();
-                    pdfCanvas.restoreState();
+                    canvas.saveState();
+                    canvas.setRGBColorFill(255, 255, 255);
+                    canvas.rectangle(edit.x, edit.y, edit.width, edit.height);
+                    canvas.fill();
+                    canvas.restoreState();
 
                     // Step 2: Add new text on top of white area
                     if (edit.newText != null && !edit.newText.isEmpty()) {
-                        // Convert Android color to iText color
+                        // Convert Android color to RGB components
                         int red = (edit.textColor >> 16) & 0xFF;
                         int green = (edit.textColor >> 8) & 0xFF;
                         int blue = edit.textColor & 0xFF;
-                        DeviceRgb textColor = new DeviceRgb(red, green, blue);
 
-                        // Calculate text position (centered in the covered area)
+                        // Calculate text position (from top of covered area with padding)
                         float textX = edit.x + 2; // Small padding from left
                         float textY = edit.y + edit.height - edit.fontSize - 2; // From top with padding
 
-                        // Create bounded area for text
-                        Rectangle textArea = new Rectangle(edit.x, edit.y, edit.width, edit.height);
+                        canvas.saveState();
+                        canvas.beginText();
+                        canvas.setFontAndSize(font, edit.fontSize);
+                        canvas.setRGBColorFill(red, green, blue);
+                        canvas.setTextMatrix(textX, textY);
 
-                        try (Canvas canvas = new Canvas(pdfCanvas, textArea)) {
-                            Paragraph paragraph = new Paragraph(edit.newText)
-                                    .setFont(font)
-                                    .setFontSize(edit.fontSize)
-                                    .setFontColor(textColor)
-                                    .setMargin(2);
-
-                            canvas.add(paragraph);
+                        // Handle multi-line text - use raw PDF operators to avoid AWT dependencies
+                        String[] lines = edit.newText.split("\n");
+                        float lineHeight = edit.fontSize + 2;
+                        for (int i = 0; i < lines.length; i++) {
+                            if (i > 0) {
+                                textY -= lineHeight;
+                                canvas.setTextMatrix(textX, textY);
+                            }
+                            String escaped = escapePdfString(lines[i]);
+                            canvas.getInternalBuffer().append('(').append(escaped).append(") Tj\n");
                         }
+
+                        canvas.endText();
+                        canvas.restoreState();
                     }
                 }
             }
+        } finally {
+            if (stamper != null) try { stamper.close(); } catch (Exception ignored) {}
+            if (reader != null) try { reader.close(); } catch (Exception ignored) {}
+            if (fos != null) try { fos.close(); } catch (Exception ignored) {}
         }
 
         return outputFile;
@@ -161,17 +166,33 @@ public class PdfCoverReplace {
      * @return float array [width, height] or null if error
      */
     public static float[] getPageDimensions(String pdfPath, int pageNumber) {
-        try (PdfReader reader = new PdfReader(pdfPath);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfPath);
 
-            if (pageNumber > 0 && pageNumber <= pdfDocument.getNumberOfPages()) {
-                PdfPage page = pdfDocument.getPage(pageNumber);
-                Rectangle pageSize = page.getPageSize();
+            if (pageNumber > 0 && pageNumber <= reader.getNumberOfPages()) {
+                Rectangle pageSize = reader.getPageSize(pageNumber);
                 return new float[]{pageSize.getWidth(), pageSize.getHeight()};
             }
         } catch (Exception e) {
             AppLogger.e("PdfCoverReplace", "Error getting page dimensions", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
         }
         return null;
+    }
+
+    /**
+     * Escape special characters for PDF string literal.
+     */
+    private static String escapePdfString(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("(", "\\(")
+                   .replace(")", "\\)")
+                   .replace("\r", "\\r")
+                   .replace("\n", "\\n");
     }
 }

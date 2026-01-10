@@ -1,12 +1,8 @@
 package com.docreader.utils;
 
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfPage;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.LocationTextExtractionStrategy;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.SimpleTextExtractionStrategy;
-import com.itextpdf.kernel.geom.Rectangle;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -294,22 +290,23 @@ public class PdfToWordConverter {
     public static List<PageContent> extractPagesContent(File pdfFile) throws Exception {
         List<PageContent> pages = new ArrayList<>();
 
-        try (PdfReader reader = new PdfReader(pdfFile);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfFile.getAbsolutePath());
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
 
-            int numberOfPages = pdfDocument.getNumberOfPages();
+            int numberOfPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= numberOfPages; i++) {
-                PdfPage pdfPage = pdfDocument.getPage(i);
                 PageContent pageContent = new PageContent(i);
 
                 // Store page dimensions for layout reference
-                Rectangle pageSize = pdfPage.getPageSize();
+                Rectangle pageSize = reader.getPageSize(i);
                 pageContent.pageWidth = pageSize.getWidth();
                 pageContent.pageHeight = pageSize.getHeight();
 
-                // Try multiple extraction strategies to get the best result
-                String pageText = extractTextFromPage(pdfPage);
+                // Extract text from page
+                String pageText = extractor.getTextFromPage(i);
 
                 if (pageText == null || pageText.trim().isEmpty()) {
                     // Add empty page marker
@@ -338,50 +335,13 @@ public class PdfToWordConverter {
 
                 pages.add(pageContent);
             }
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
+            }
         }
 
         return pages;
-    }
-
-    /**
-     * Extract text from a PDF page using the best available strategy
-     */
-    private static String extractTextFromPage(PdfPage pdfPage) {
-        String text = "";
-
-        try {
-            // First try with SimpleTextExtractionStrategy for basic text
-            SimpleTextExtractionStrategy simpleStrategy = new SimpleTextExtractionStrategy();
-            String simpleText = PdfTextExtractor.getTextFromPage(pdfPage, simpleStrategy);
-
-            // Also try LocationTextExtractionStrategy for positioned text
-            LocationTextExtractionStrategy locationStrategy = new LocationTextExtractionStrategy();
-            String locationText = PdfTextExtractor.getTextFromPage(pdfPage, locationStrategy);
-
-            // Use whichever extraction got more content
-            if (simpleText != null && locationText != null) {
-                // Count actual content (non-whitespace characters)
-                int simpleContent = simpleText.replaceAll("\\s+", "").length();
-                int locationContent = locationText.replaceAll("\\s+", "").length();
-
-                // Choose the one with more actual content
-                text = (simpleContent >= locationContent) ? simpleText : locationText;
-            } else if (simpleText != null) {
-                text = simpleText;
-            } else if (locationText != null) {
-                text = locationText;
-            }
-        } catch (Exception e) {
-            // Fallback to basic extraction
-            try {
-                LocationTextExtractionStrategy strategy = new LocationTextExtractionStrategy();
-                text = PdfTextExtractor.getTextFromPage(pdfPage, strategy);
-            } catch (Exception ex) {
-                text = "";
-            }
-        }
-
-        return text;
     }
 
     /**
@@ -470,23 +430,28 @@ public class PdfToWordConverter {
     public static String extractText(File pdfFile) throws Exception {
         StringBuilder fullText = new StringBuilder();
 
-        try (PdfReader reader = new PdfReader(pdfFile);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfFile.getAbsolutePath());
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
 
-            int numberOfPages = pdfDocument.getNumberOfPages();
+            int numberOfPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= numberOfPages; i++) {
                 if (numberOfPages > 1) {
                     fullText.append("=== PAGE ").append(i).append(" ===\n");
                 }
 
-                LocationTextExtractionStrategy strategy = new LocationTextExtractionStrategy();
-                String pageText = PdfTextExtractor.getTextFromPage(pdfDocument.getPage(i), strategy);
+                String pageText = extractor.getTextFromPage(i);
                 fullText.append(pageText);
 
                 if (i < numberOfPages) {
                     fullText.append("\n\n");
                 }
+            }
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -500,22 +465,27 @@ public class PdfToWordConverter {
         File pdfFile = new File(pdfPath);
         StringBuilder fullText = new StringBuilder();
 
-        try (PdfReader reader = new PdfReader(pdfFile);
-             PdfDocument pdfDocument = new PdfDocument(reader)) {
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfFile.getAbsolutePath());
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
 
-            int numberOfPages = pdfDocument.getNumberOfPages();
+            int numberOfPages = reader.getNumberOfPages();
 
             for (int i = 1; i <= numberOfPages; i++) {
                 // Page marker that will be used when converting back
                 fullText.append("[PAGE:").append(i).append("]\n");
 
-                LocationTextExtractionStrategy strategy = new LocationTextExtractionStrategy();
-                String pageText = PdfTextExtractor.getTextFromPage(pdfDocument.getPage(i), strategy);
+                String pageText = extractor.getTextFromPage(i);
                 fullText.append(pageText);
 
                 if (i < numberOfPages) {
                     fullText.append("\n");
                 }
+            }
+        } finally {
+            if (reader != null) {
+                try { reader.close(); } catch (Exception ignored) {}
             }
         }
 

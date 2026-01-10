@@ -12,6 +12,9 @@
     <!-- Modern media permissions for Android 13+ (only images needed for PDF to Image) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- Android 14+ partial media access permission -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
     <!-- Query for file handling apps (Android 11+ package visibility) -->
     <queries>
         <intent>
@@ -52,7 +55,7 @@
         <activity
             android:name=".activities.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.DocumentReader">
+            android:theme="@style/Theme.DocumentReader.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -81,6 +84,11 @@
 
         <activity
             android:name=".activities.DocViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DocumentReader" />
+
+        <activity
+            android:name=".activities.PrivacyPolicyActivity"
             android:exported="false"
             android:theme="@style/Theme.DocumentReader" />
 

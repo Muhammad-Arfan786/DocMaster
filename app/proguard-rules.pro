@@ -21,9 +21,13 @@
 -dontwarn org.apache.poi.**
 -dontwarn org.apache.xmlbeans.**
 
-# Keep iText PDF classes (PDF manipulation)
--keep class com.itextpdf.** { *; }
--dontwarn com.itextpdf.**
+# Keep OpenPDF classes (PDF manipulation - LGPL license)
+-keep class com.lowagie.** { *; }
+-dontwarn com.lowagie.**
+
+# OpenPDF optional dependencies (not available on Android)
+-dontwarn org.apache.fop.**
+-dontwarn com.ibm.icu.**
 
 # Missing classes - dontwarn rules (desktop classes not available on Android)
 -dontwarn java.awt.**
@@ -101,3 +105,7 @@
 # Optimize
 -optimizationpasses 5
 -allowaccessmodification
+
+# JP2 codec (optional PDFBox dependency)
+-dontwarn com.gemalto.jp2.JP2Decoder
+-dontwarn com.gemalto.jp2.JP2Encoder
